@@ -289,8 +289,8 @@ function FeedbackContent() {
         return (
             <div className="min-h-screen bg-[#0d0d0f] flex flex-col items-center justify-center text-white">
                 <p className="text-xl mb-4">No feedback data found</p>
-                <Link href="/" className="text-orange-500 hover:text-orange-400">
-                    ← Return to Interview
+                <Link href="/dashboard" className="text-orange-500 hover:text-orange-400">
+                    ← Return to Dashboard
                 </Link>
             </div>
         );
@@ -301,9 +301,9 @@ function FeedbackContent() {
             {/* Header */}
             <div className="border-b border-[#2a2a2e] px-6 py-4">
                 <div className="max-w-5xl mx-auto flex items-center justify-between">
-                    <Link href="/" className="flex items-center gap-2 text-[#6b6b70] hover:text-white transition-colors">
+                    <Link href="/dashboard" className="flex items-center gap-2 text-[#6b6b70] hover:text-white transition-colors">
                         <ArrowLeft className="w-5 h-5" />
-                        <span>New Interview</span>
+                        <span>Return to Dashboard</span>
                     </Link>
                     <div className="flex items-center gap-4">
                         <button

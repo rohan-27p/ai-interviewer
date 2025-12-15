@@ -26,20 +26,36 @@ export async function POST(req: Request) {
         // If not provided, we'll create a temporary one or skip database save
         const shouldSaveToDatabase = !!sessionId;
 
-        // Format the conversation for the LLM
+        // Format the conversation for the LLM - filter and format properly
+        const userMessages = messages.filter((m: { role: string }) => m.role === 'user');
+        const assistantMessages = messages.filter((m: { role: string }) => m.role === 'assistant');
+
         const conversationSummary = messages
             .filter((m: { role: string }) => m.role !== 'system')
-            .map((m: { role: string; content: string }) => `${m.role.toUpperCase()}: ${m.content}`)
+            .map((m: { role: string; content: string }) => {
+                const role = m.role === 'user' ? 'CANDIDATE' : 'INTERVIEWER';
+                return `${role}: ${m.content}`;
+            })
             .join('\n\n');
 
-        const questionsList = questions?.join(', ') || 'Various coding questions';
+        const questionsList = questions?.join(', ') || 'Technical questions';
+
+        console.log(`Generating feedback for ${userMessages.length} user responses, ${messages.length} total messages`);
+        console.log('Conversation summary length:', conversationSummary.length);
 
         // Generate detailed feedback using Groq
         const completion = await groq.chat.completions.create({
             messages: [
                 {
                     role: 'system',
-                    content: `You are an expert technical interview coach providing detailed feedback to a candidate after their coding interview.
+                    content: `You are an expert technical interview coach providing detailed feedback to a candidate after their interview.
+
+CRITICAL INSTRUCTIONS:
+1. Carefully analyze the ACTUAL responses from the CANDIDATE in the transcript below
+2. Count how many substantial technical answers the CANDIDATE provided
+3. ONLY give score 1-3 and "No Hire" if the candidate provided NO meaningful technical content
+4. If the candidate provided detailed technical explanations (like explaining algorithms, concepts, etc.), score them 6-10 based on quality
+5. Do NOT assume silence - read the actual CANDIDATE responses in the transcript
 
 Analyze the interview conversation and provide structured feedback in the following JSON format:
 {
@@ -50,21 +66,27 @@ Analyze the interview conversation and provide structured feedback in the follow
     "areasForImprovement": ["<area 1>", "<area 2>", ...],
     "technicalSkills": {
         "score": <number 1-10>,
-        "feedback": "<detailed feedback on coding ability, algorithm knowledge, data structures>"
+        "feedback": "<detailed feedback on technical knowledge demonstrated>"
     },
     "problemSolving": {
         "score": <number 1-10>,
-        "feedback": "<detailed feedback on approach, breaking down problems, optimization>"
+        "feedback": "<detailed feedback on approach and analytical thinking>"
     },
     "communication": {
         "score": <number 1-10>,
-        "feedback": "<detailed feedback on explaining thought process, asking clarifying questions>"
+        "feedback": "<detailed feedback on explaining concepts clearly>"
     },
     "recommendations": ["<specific actionable recommendation 1>", "<recommendation 2>", ...]
 }
 
+SCORING GUIDELINES:
+- 1-3: No answer or completely incorrect
+- 4-5: Minimal understanding, major gaps
+- 6-7: Good understanding, covers key concepts
+- 8-9: Strong understanding, detailed explanations
+- 10: Exceptional, comprehensive answer
+
 Be constructive, specific, and encouraging while being honest about areas for improvement.
-If user doesnt answer anything and just clicked end interview then give him score 1 and verdict as No Hire
 Return ONLY valid JSON, no markdown or additional text.`
                 },
                 {
@@ -74,7 +96,9 @@ Return ONLY valid JSON, no markdown or additional text.`
 QUESTIONS COVERED: ${questionsList}
 
 INTERVIEW TRANSCRIPT:
-${conversationSummary}`
+${conversationSummary}
+
+IMPORTANT: Carefully read the CANDIDATE's responses above. If they provided detailed technical explanations, score them appropriately (typically 6-10). Only give very low scores (1-3) if they literally didn't answer at all.`
                 }
             ],
             model: 'llama-3.3-70b-versatile',

@@ -14,10 +14,10 @@ export async function POST(req: Request) {
         }
 
         const body = await req.json();
-        const { interviewType, difficulty, topics, numQuestions } = body;
+        const { interview_type, difficulty, topics, num_questions } = body;
 
         // Validate input
-        if (!interviewType || !difficulty || !topics || !numQuestions) {
+        if (!interview_type || !difficulty || !topics || !num_questions) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
@@ -26,10 +26,10 @@ export async function POST(req: Request) {
             .from('interview_sessions')
             .insert({
                 user_id: user.id,
-                interview_type: interviewType,
+                interview_type,
                 difficulty,
                 topics,
-                num_questions: numQuestions,
+                num_questions,
                 status: 'active',
                 messages: [],
                 current_question_index: 0,
@@ -40,6 +40,68 @@ export async function POST(req: Request) {
         if (error) {
             console.error('Error creating session:', error);
             return NextResponse.json({ error: 'Failed to create session' }, { status: 500 });
+        }
+
+        console.log(`Session created: ${session.id}. Generating ${num_questions} questions...`);
+
+        // ==================================================================
+        // PLANNED ARCHITECTURE: Generate ALL questions upfront
+        // ==================================================================
+
+        try {
+            // Call batch generation API
+            const questionResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/generate-question-batch`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Cookie': req.headers.get('cookie') || '', // Pass auth cookies
+                },
+                body: JSON.stringify({
+                    interviewType: interview_type,
+                    difficulty,
+                    topics,
+                    count: num_questions
+                })
+            });
+
+            if (!questionResponse.ok) {
+                throw new Error('Failed to generate questions');
+            }
+
+            const { questions } = await questionResponse.json();
+
+            console.log(`Generated ${questions.length} questions. Storing in DB...`);
+
+            // Store each question in interview_questions table
+            const questionInserts = questions.map((q: any, index: number) => ({
+                session_id: session.id,
+                question_title: q.title,
+                question_description: q.description,
+                question_difficulty: q.difficulty,
+                question_type: q.type || interview_type,
+                constraints: q.constraints,
+                examples: q.examples,
+                followup_guidelines: q.followup_guidelines,
+                question_order: index + 1,
+                status: index === 0 ? 'active' : 'pending', // First question is active
+            }));
+
+            const { error: insertError } = await supabase
+                .from('interview_questions')
+                .insert(questionInserts);
+
+            if (insertError) {
+                console.error('Error inserting questions:', insertError);
+                // Don't fail - session was created successfully
+                // Questions can be generated on-the-fly as fallback
+            } else {
+                console.log(`✅ Successfully stored ${questions.length} questions for session ${session.id}`);
+            }
+
+        } catch (questionError) {
+            console.error('Question generation error:', questionError);
+            // Don't fail the session creation - just log the error
+            // Questions can be generated on-the-fly as fallback
         }
 
         return NextResponse.json({ session });

@@ -134,7 +134,7 @@ const FALLBACKS: Record<string, Question[]> = {
         {
             title: "Full Application Architecture",
             description: "Design the architecture for a real-time chat application. Consider both frontend state management and backend scalability.",
-            difficulty: "Hard",
+            difficulty: "Easy",
             constraints: [],
             examples: []
         }
@@ -209,10 +209,13 @@ export async function POST(req: Request) {
             throw new Error('Invalid LLM response');
         }
 
-        // Parse JSON from response
+        // Parse JSON from response - handle markdown code fences
         let question: Question;
         try {
-            const jsonMatch = content.match(/\{[\s\S]*\}/);
+            // Clean markdown code fences if present
+            const cleanedContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+            const jsonMatch = cleanedContent.match(/\{[\s\S]*\}/);
             if (!jsonMatch) {
                 throw new Error('No JSON found in response');
             }
@@ -220,6 +223,12 @@ export async function POST(req: Request) {
 
             if (!question.title || !question.description) {
                 throw new Error('Missing required fields');
+            }
+
+            // Override difficulty if it doesn't match the requested difficulty
+            if (difficulty && question.difficulty !== difficulty) {
+                console.log(`Overriding LLM difficulty ${question.difficulty} with requested ${difficulty}`);
+                question.difficulty = difficulty;
             }
         } catch (parseError) {
             console.error('Failed to parse question JSON:', content);

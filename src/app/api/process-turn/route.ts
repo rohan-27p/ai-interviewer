@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@deepgram/sdk';
 import { Groq } from 'groq-sdk';
 import { Message, Question } from '@/lib/types';
+import { createClient as createSupabaseClient } from '@/lib/supabase/server';
 
 // Initialize Clients
 const deepgram = createClient(process.env.DEEPGRAM_API_KEY ?? '');
@@ -24,77 +25,61 @@ const NEXT_QUESTION_TRIGGERS = [
     'finished'
 ];
 
-function shouldGenerateNewQuestion(transcript: string, aiReply: string): boolean {
-    const lowerTranscript = transcript.toLowerCase();
-    const lowerReply = aiReply.toLowerCase();
-
-    // Check if user requested next question
-    const userRequestedNext = NEXT_QUESTION_TRIGGERS.some(trigger =>
-        lowerTranscript.includes(trigger)
-    );
-
-    // Check if AI indicated question is complete
-    const aiIndicatedComplete = lowerReply.includes('great job') ||
-        lowerReply.includes('correct solution') ||
-        lowerReply.includes('well done') ||
-        lowerReply.includes('perfect') ||
-        lowerReply.includes('optimal solution');
-
-    return userRequestedNext || aiIndicatedComplete;
-}
-
-async function generateNewQuestion(previousTopics: string[]): Promise<Question | null> {
-    try {
-        const QUESTION_PROMPT = `Generate a coding interview question in JSON format:
-{
-    "title": "Problem Title",
-    "description": "Clear problem description.",
-    "constraints": ["constraint 1", "constraint 2"],
-    "examples": [{"input": "...", "output": "...", "explanation": "..."}],
-    "difficulty": "Medium"
-}
-Focus on: Arrays, Strings, Hash Maps, Two Pointers. Return ONLY valid JSON.`;
-
-        const avoidPrompt = previousTopics.length > 0
-            ? `\nAvoid these already asked: ${previousTopics.join(', ')}`
-            : '';
-
-        const completion = await groq.chat.completions.create({
-            messages: [
-                { role: 'system', content: QUESTION_PROMPT + avoidPrompt },
-                { role: 'user', content: 'Generate a Medium difficulty coding interview question.' }
-            ],
-            model: 'llama-3.3-70b-versatile',
-            temperature: 0.8,
-            max_tokens: 800,
-        });
-
-        const content = completion.choices[0]?.message?.content || '';
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            return JSON.parse(jsonMatch[0]) as Question;
-        }
-    } catch (error) {
-        console.error('Failed to generate new question:', error);
-    }
-    return null;
-}
-
 export async function POST(req: Request) {
     try {
-        const formData = await req.formData();
-        const audioFile = formData.get('audio') as Blob;
-        const historyStr = formData.get('history') as string;
-        const code = formData.get('code') as string;
-        const currentQuestionTitle = formData.get('currentQuestionTitle') as string || '';
-        const previousQuestionsStr = formData.get('previousQuestions') as string || '[]';
+        const supabase = await createSupabaseClient();
 
-        if (!audioFile || !historyStr) {
-            return NextResponse.json({ error: 'Missing audio or history' }, { status: 400 });
+        // Authenticate user
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+        if (authError || !user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const conversationHistory: Message[] = JSON.parse(historyStr);
+        const formData = await req.formData();
+        const audioFile = formData.get('audio') as Blob;
+        const sessionId = formData.get('sessionId') as string;
+
+        if (!audioFile) {
+            return NextResponse.json({ error: 'Missing audio' }, { status: 400 });
+        }
+
+        // FIX #3: Fetch state from DATABASE, not client
+        if (!sessionId) {
+            return NextResponse.json({ error: 'Session ID required' }, { status: 400 });
+        }
+
+        const { data: session, error: sessionError } = await supabase
+            .from('interview_sessions')
+            .select('*')
+            .eq('id', sessionId)
+            .eq('user_id', user.id)
+            .single();
+
+        if (sessionError || !session) {
+            console.error('Session fetch error:', sessionError);
+            return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+        }
+
+        // Get state from DATABASE (source of truth)
+        const conversationHistory: Message[] = session.messages || [];
+        const currentQuestionIndex = session.current_question_index || 0;
+        const maxQuestions = session.num_questions;
+        const code = formData.get('code') as string || '';
+        const currentQuestionTitle = formData.get('currentQuestionTitle') as string || '';
+        const previousQuestionsStr = formData.get('previousQuestions') as string || '[]';
         const previousQuestions: string[] = JSON.parse(previousQuestionsStr);
+
+        // HARD STOP: Enforce question limit at backend
+        const isFinalQuestion = currentQuestionIndex >= maxQuestions - 1;
+        const hasReachedLimit = currentQuestionIndex >= maxQuestions;
+
+        if (hasReachedLimit) {
+            return NextResponse.json({
+                error: 'Interview complete',
+                shouldEndInterview: true
+            }, { status: 400 });
+        }
 
         // ------------------------------------------------------------------
         // 1. STT: Deepgram SDK (Nova-2)
@@ -124,34 +109,157 @@ export async function POST(req: Request) {
         console.log('User said:', userTranscript);
 
         // ------------------------------------------------------------------
-        // 2. LLM: Groq (Llama 3.3)
+        // 2. LLM: Groq (Llama 3.3) with STRUCTURED OUTPUT
         // ------------------------------------------------------------------
-        const currentCodeContext = `\n[Current Code State]:\n\`\`\`\n${code}\n\`\`\``;
+
+        // FIX #1: Separate system context from user message
+        const systemPrompt = `You are an expert technical interviewer conducting a ${session.interview_type} interview.
+
+Current Code State:
+\`\`\`
+${code}
+\`\`\`
+
+Interview Rules:
+- This is question ${currentQuestionIndex + 1} of ${maxQuestions}
+${isFinalQuestion ? '- THIS IS THE FINAL QUESTION. After evaluation, the interview ends.' : ''}
+- Be encouraging and helpful but CONCISE
+- Keep responses under 3-4 sentences unless explaining complex concepts
+- Ask focused follow-up questions to understand thought process
+- Guide them if stuck, but don't give away the answer
+
+RESPONSE STYLE:
+- Be conversational and natural, like a real interviewer
+- Avoid repeating what the candidate just said
+- Ask ONE follow-up question at a time, not multiple
+- Keep it brief - you're having a conversation, not writing an essay
+
+IMPORTANT: At the end of your response, add a status tag:
+- If the candidate has fully solved the current problem AND you believe they're ready to move on, end with: [STATUS:COMPLETE]
+- Otherwise, end with: [STATUS:CONTINUE]
+
+Only use [STATUS:COMPLETE] when:
+1. The candidate provided a correct, working solution
+2. You've evaluated their approach and it's solid
+3. They've answered your follow-up questions satisfactorily`;
 
         const messages = [
+            { role: 'system', content: systemPrompt },
             ...conversationHistory,
-            { role: 'user', content: userTranscript + currentCodeContext } as Message
+            { role: 'user', content: userTranscript }
         ];
 
         const completion = await groq.chat.completions.create({
             messages: messages as any[],
             model: 'llama-3.3-70b-versatile',
             temperature: 0.6,
-            max_tokens: 200,
+            max_tokens: 150, // Reduced from 300 for conciseness
         });
 
         const aiReply = completion.choices[0]?.message?.content || "I didn't catch that.";
         console.log('AI replied:', aiReply);
 
+        // FIX #2: Parse structured status tag instead of text matching
+        const statusMatch = aiReply.match(/\[STATUS:(COMPLETE|CONTINUE)\]/);
+        const aiStatus = statusMatch ? statusMatch[1] : 'CONTINUE';
+
+        // Remove status tag from user-visible reply
+        const cleanReply = aiReply.replace(/\[STATUS:(COMPLETE|CONTINUE)\]/, '').trim();
+
+        console.log('AI Status:', aiStatus);
+
         // ------------------------------------------------------------------
-        // 3. Check if we need a new question
+        // 3. PLANNED ARCHITECTURE: Fetch next question from DATABASE
         // ------------------------------------------------------------------
         let newQuestion: Question | null = null;
-        if (shouldGenerateNewQuestion(userTranscript, aiReply)) {
-            const allPreviousTopics = currentQuestionTitle
-                ? [...previousQuestions, currentQuestionTitle]
-                : previousQuestions;
-            newQuestion = await generateNewQuestion(allPreviousTopics);
+
+        // Check if user explicitly requested next question
+        const lowerTranscript = userTranscript.toLowerCase();
+        const userRequestedNext = NEXT_QUESTION_TRIGGERS.some(trigger =>
+            lowerTranscript.includes(trigger)
+        );
+
+        const shouldAdvance = (userRequestedNext || aiStatus === 'COMPLETE') && !isFinalQuestion && !hasReachedLimit;
+
+        if (shouldAdvance) {
+            console.log('Advancing to next question...');
+
+            // Mark current question as completed in DB
+            const { data: currentQ } = await supabase
+                .from('interview_questions')
+                .select('id')
+                .eq('session_id', sessionId)
+                .eq('status', 'active')
+                .single();
+
+            if (currentQ) {
+                await supabase
+                    .from('interview_questions')
+                    .update({
+                        status: 'completed',
+                        completed_at: new Date().toISOString(),
+                        user_answer: conversationHistory.map((m: Message) => m.content).join('\n')
+                    })
+                    .eq('id', currentQ.id);
+            }
+
+            // Fetch next pending question from DB
+            const { data: nextQ, error: nextError } = await supabase
+                .from('interview_questions')
+                .select('*')
+                .eq('session_id', sessionId)
+                .eq('status', 'pending')
+                .order('question_order', { ascending: true })
+                .limit(1)
+                .single();
+
+            if (nextQ && !nextError) {
+                // Activate next question
+                await supabase
+                    .from('interview_questions')
+                    .update({
+                        status: 'active',
+                        asked_at: new Date().toISOString()
+                    })
+                    .eq('id', nextQ.id);
+
+                // Map to frontend format
+                newQuestion = {
+                    title: nextQ.question_title,
+                    description: nextQ.question_description,
+                    difficulty: nextQ.question_difficulty,
+                    constraints: nextQ.constraints || [],
+                    examples: nextQ.examples || []
+                };
+
+                console.log('✅ Next question activated:', newQuestion.title);
+            } else {
+                console.log('No more questions in database');
+            }
+
+        } else if (isFinalQuestion && (userRequestedNext || aiStatus === 'COMPLETE')) {
+            // User finished final question - mark as completed
+            console.log('Final question complete. Marking as completed...');
+
+            const { data: finalQ } = await supabase
+                .from('interview_questions')
+                .select('id')
+                .eq('session_id', sessionId)
+                .eq('status', 'active')
+                .single();
+
+            if (finalQ) {
+                await supabase
+                    .from('interview_questions')
+                    .update({
+                        status: 'completed',
+                        completed_at: new Date().toISOString(),
+                        user_answer: conversationHistory.map((m: Message) => m.content).join('\n')
+                    })
+                    .eq('id', finalQ.id);
+            }
+
+            console.log('Signaling interview end.');
         }
 
         // ------------------------------------------------------------------
@@ -160,7 +268,7 @@ export async function POST(req: Request) {
         const murfUrl = 'https://global.api.murf.ai/v1/speech/stream';
         const murfPayload = {
             voiceId: 'en-US-matthew',
-            text: aiReply,
+            text: cleanReply,
             multiNativeLocale: 'en-US',
             model: 'FALCON',
             format: 'MP3',
@@ -186,11 +294,28 @@ export async function POST(req: Request) {
         const audioArrayBuffer = await murfResponse.arrayBuffer();
         const audioBase64 = Buffer.from(audioArrayBuffer).toString('base64');
 
+        // Update session in database with new messages
+        const updatedMessages = [
+            ...conversationHistory,
+            { role: 'user', content: userTranscript },
+            { role: 'assistant', content: cleanReply }
+        ];
+
+        await supabase
+            .from('interview_sessions')
+            .update({
+                messages: updatedMessages,
+                current_question_index: newQuestion ? currentQuestionIndex + 1 : currentQuestionIndex
+            })
+            .eq('id', sessionId)
+            .eq('user_id', user.id);
+
         return NextResponse.json({
             transcript: userTranscript,
-            reply: aiReply,
+            reply: cleanReply,
             audioBase64: audioBase64,
-            newQuestion: newQuestion
+            newQuestion: newQuestion,
+            shouldEndInterview: isFinalQuestion && (userRequestedNext || aiStatus === 'COMPLETE')
         });
 
     } catch (error) {

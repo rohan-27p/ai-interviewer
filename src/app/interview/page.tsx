@@ -72,6 +72,7 @@ function InterviewContent() {
     };
 
     const isDSA = config.type === 'dsa';
+    const sessionId = searchParams.get('sessionId');
 
     // State
     const [messages, setMessages] = useState<Message[]>([]);
@@ -98,7 +99,7 @@ function InterviewContent() {
         if (hasInitialized.current) return;
         hasInitialized.current = true;
 
-        fetchNewQuestion();
+        fetchQuestionFromDB();
         if (typeof window !== 'undefined') {
             audioPlayerRef.current = new Audio();
         }
@@ -125,30 +126,44 @@ function InterviewContent() {
         }
     }, [currentQuestion]);
 
-    const fetchNewQuestion = async () => {
+    // PLANNED ARCHITECTURE: Fetch question from database instead of generating
+    const fetchQuestionFromDB = async () => {
         setIsLoadingQuestion(true);
         try {
-            const response = await fetch('/api/generate-question', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    interviewType: config.type,
-                    topics: config.topics,
-                    difficulty: config.difficulty,
-                    previousQuestions: previousQuestions
-                })
-            });
+            if (!sessionId) {
+                console.error('No session ID available');
+                return;
+            }
 
-            const data = await response.json();
-            if (data.question) {
-                setCurrentQuestion(data.question);
+            // Fetch the ACTIVE question for this session from DB
+            const response = await fetch(`/api/questions?sessionId=${sessionId}&status=active`);
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch question from database');
+            }
+
+            const { question } = await response.json();
+
+            if (question) {
+                // Map database question to frontend format
+                setCurrentQuestion({
+                    title: question.question_title,
+                    description: question.question_description,
+                    difficulty: question.question_difficulty,
+                    constraints: question.constraints || [],
+                    examples: question.examples || []
+                });
+                console.log('✅ Loaded question from DB:', question.question_title);
             }
         } catch (error) {
-            console.error('Error fetching question:', error);
+            console.error('Error fetching question from database:', error);
         } finally {
             setIsLoadingQuestion(false);
         }
     };
+
+    // Keep old function name for compatibility
+    const fetchNewQuestion = fetchQuestionFromDB;
 
     // Helper to play audio and reset state when done
     const playAudio = (audioBase64: string) => {
@@ -249,12 +264,10 @@ function InterviewContent() {
 
         const formData = new FormData();
         formData.append('audio', audioBlob);
-        formData.append('history', JSON.stringify(messages));
+        formData.append('sessionId', sessionId || ''); // Backend fetches state from DB
         formData.append('code', code);
         formData.append('currentQuestionTitle', currentQuestion?.title || '');
         formData.append('previousQuestions', JSON.stringify(previousQuestions));
-        formData.append('interviewType', config.type);
-        formData.append('topics', config.topics.join(','));
 
         try {
             const response = await fetch('/api/process-turn', {
@@ -265,13 +278,15 @@ function InterviewContent() {
             if (!response.ok) throw new Error('API processing failed');
 
             const data = await response.json();
-            const { transcript, reply, audioBase64, newQuestion } = data;
+            const { transcript, reply, audioBase64, newQuestion, shouldEndInterview } = data;
 
-            setMessages(prev => [
-                ...prev,
-                { role: 'user', content: transcript },
-                { role: 'assistant', content: reply }
-            ]);
+            const updatedMessages = [
+                ...messages,
+                { role: 'user' as const, content: transcript },
+                { role: 'assistant' as const, content: reply }
+            ];
+
+            setMessages(updatedMessages);
 
             // Handle new question if generated
             if (newQuestion) {
@@ -280,6 +295,19 @@ function InterviewContent() {
                 );
                 setCurrentQuestion(newQuestion);
                 setQuestionsAnswered(prev => prev + 1);
+            }
+
+            // ONLY end interview if backend explicitly signals it
+            if (shouldEndInterview) {
+                console.log('Question limit reached. Auto-ending interview...');
+                playAudio(audioBase64);
+                // Wait for audio to finish then show end dialog
+                setTimeout(() => {
+                    if (confirm('You have completed all questions! Click OK to see your feedback.')) {
+                        endInterview();
+                    }
+                }, 2000);
+                return;
             }
 
             // Play the audio response
@@ -306,17 +334,20 @@ function InterviewContent() {
                 body: JSON.stringify({
                     messages: messages,
                     questions: [currentQuestion?.title, ...previousQuestions].filter(Boolean),
-                    interviewType: config.type
+                    interviewType: config.type,
+                    sessionId: sessionId || undefined // Send sessionId if available
                 })
             });
 
             if (!response.ok) throw new Error('Failed to generate feedback');
 
             const data = await response.json();
-            const { uid, feedback } = data;
+            const { uid, feedback, feedbackId } = data;
 
+            // If we have a feedbackId from database, use it; otherwise use the temp uid
+            const id = feedbackId || uid;
             const encodedFeedback = encodeURIComponent(JSON.stringify(feedback));
-            router.push(`/feedback?uid=${uid}&data=${encodedFeedback}`);
+            router.push(`/feedback?uid=${id}&data=${encodedFeedback}${sessionId ? `&sessionId=${sessionId}` : ''}`);
         } catch (error) {
             console.error('Error generating feedback:', error);
             alert('Failed to generate feedback. Please try again.');

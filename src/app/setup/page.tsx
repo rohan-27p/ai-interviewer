@@ -37,6 +37,7 @@ export default function SetupPage() {
     const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
     const [difficulty, setDifficulty] = useState<string>('medium');
     const [questionCount, setQuestionCount] = useState<number>(3);
+    const [isCreatingSession, setIsCreatingSession] = useState(false);
 
     const availableTopics = TOPICS_BY_TYPE[interviewType] || [];
 
@@ -61,14 +62,59 @@ export default function SetupPage() {
         setSelectedTopics([]); // Reset topics when type changes
     };
 
-    const startInterview = () => {
-        const params = new URLSearchParams({
-            type: interviewType,
-            topics: selectedTopics.join(','),
-            difficulty: difficulty,
-            questions: questionCount.toString()
-        });
-        router.push(`/interview?${params.toString()}`);
+    const startInterview = async () => {
+        setIsCreatingSession(true);
+
+        try {
+            // Capitalize difficulty to match database constraint (Easy/Medium/Hard)
+            const capitalizedDifficulty = difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
+
+            // Format interview type to match database enum (DSA, Frontend, Backend, etc.)
+            const formatInterviewType = (type: string): string => {
+                const map: Record<string, string> = {
+                    dsa: "DSA",
+                    frontend: "Frontend",
+                    backend: "Backend",
+                    fullstack: "Fullstack",
+                    cybersecurity: "Cybersecurity",
+                    devops: "DevOps"     // FIXED HERE
+                };
+                return map[type] || type;
+            };
+
+
+            // Create session in database with snake_case keys
+            const response = await fetch('/api/sessions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    interview_type: formatInterviewType(interviewType),
+                    difficulty: capitalizedDifficulty,
+                    topics: selectedTopics.length > 0 ? selectedTopics : availableTopics,
+                    num_questions: questionCount
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to create session');
+            }
+
+            const { session } = await response.json();
+
+            // Navigate to interview with session ID
+            const params = new URLSearchParams({
+                type: interviewType,
+                topics: selectedTopics.join(','),
+                difficulty: difficulty,
+                questions: questionCount.toString(),
+                sessionId: session.id
+            });
+            router.push(`/interview?${params.toString()}`);
+        } catch (error) {
+            console.error('Error creating session:', error);
+            alert('Failed to start interview. Please try again.');
+            setIsCreatingSession(false);
+        }
     };
 
     const getColorClasses = (color: string, isSelected: boolean) => {
@@ -145,8 +191,8 @@ export default function SetupPage() {
                                     key={topic}
                                     onClick={() => toggleTopic(topic)}
                                     className={`px-3 py-1.5 rounded-lg text-sm transition-all border ${isSelected
-                                            ? 'border-orange-500 bg-orange-500/20 text-orange-300'
-                                            : 'border-white/10 text-[#a0a0a5] hover:border-white/30'
+                                        ? 'border-orange-500 bg-orange-500/20 text-orange-300'
+                                        : 'border-white/10 text-[#a0a0a5] hover:border-white/30'
                                         }`}
                                 >
                                     {topic}
@@ -202,10 +248,23 @@ export default function SetupPage() {
                 <div className="pt-6 border-t border-white/10">
                     <button
                         onClick={startInterview}
-                        className="w-full flex items-center justify-center gap-2 py-4 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 rounded-xl font-semibold text-lg transition-all shadow-lg shadow-orange-500/30"
+                        disabled={isCreatingSession}
+                        className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl font-semibold text-lg transition-all shadow-lg ${isCreatingSession
+                            ? 'bg-orange-500/50 cursor-wait'
+                            : 'bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 shadow-orange-500/30'
+                            }`}
                     >
-                        Start Interview
-                        <ArrowRight className="w-5 h-5" />
+                        {isCreatingSession ? (
+                            <>
+                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                Creating Session...
+                            </>
+                        ) : (
+                            <>
+                                Start Interview
+                                <ArrowRight className="w-5 h-5" />
+                            </>
+                        )}
                     </button>
 
                     <p className="text-center text-[#6b6b70] text-sm mt-4">
