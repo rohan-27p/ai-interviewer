@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useRef, useEffect, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import React, { useState, useRef, useEffect, use } from 'react';
+import { useRouter } from 'next/navigation';
 import CodeEditor from '@/components/CodeEditor';
 import VoiceInterface from '@/components/VoiceInterface';
 import { Message, InterviewState, Question } from '@/lib/types';
@@ -61,28 +61,38 @@ YOUR ROLE:
     };
 };
 
-function InterviewContent() {
-    const searchParams = useSearchParams();
+// Format interview type for display
+const formatType = (type: string) => {
+    const typeMap: Record<string, string> = {
+        dsa: 'DSA',
+        frontend: 'Frontend',
+        backend: 'Backend',
+        fullstack: 'Fullstack',
+        cybersecurity: 'Cybersecurity',
+        devops: 'DevOps'
+    };
+    return typeMap[type] || type;
+};
+
+interface PageProps {
+    params: Promise<{ sessionId: string }>;
+}
+
+export default function InterviewPage({ params }: PageProps) {
+    // Get sessionId from dynamic route
+    const { sessionId } = use(params);
     const router = useRouter();
 
-    // Parse config from URL
-    const config: InterviewConfig = {
-        type: searchParams.get('type') || 'dsa',
-        topics: searchParams.get('topics')?.split(',').filter(Boolean) || [],
-        difficulty: searchParams.get('difficulty') || 'medium',
-        questionCount: parseInt(searchParams.get('questions') || '3')
-    };
+    // Config is now fetched from DB, not URL
+    const [config, setConfig] = useState<InterviewConfig>({
+        type: 'dsa',
+        topics: [],
+        difficulty: 'medium',
+        questionCount: 3
+    });
+    const [isConfigLoaded, setIsConfigLoaded] = useState(false);
 
     const isDSA = config.type === 'dsa';
-    const sessionId = searchParams.get('sessionId');
-
-    // TEMP REDIRECT: If sessionId exists, redirect to new clean URL
-    useEffect(() => {
-        if (sessionId) {
-            console.warn('⚠️ Old URL detected. Redirecting to /interview/' + sessionId);
-            router.replace(`/interview/${sessionId}`);
-        }
-    }, [sessionId, router]);
 
     // State
     const [messages, setMessages] = useState<Message[]>([]);
@@ -104,22 +114,53 @@ function InterviewContent() {
     const lastPlayedQuestionId = useRef<string | null>(null);
     const isFirstQuestion = useRef(true);
 
-    // Initialize audio player on mount - only run once
+    // 1. Fetch session config from DB on mount
     useEffect(() => {
         if (hasInitialized.current) return;
         hasInitialized.current = true;
 
-        fetchQuestionFromDB();
-        if (typeof window !== 'undefined') {
-            audioPlayerRef.current = new Audio();
-        }
+        const initSession = async () => {
+            try {
+                // Fetch session details from DB
+                const response = await fetch(`/api/sessions/${sessionId}`);
+                if (!response.ok) {
+                    toast.error('Session not found. Redirecting...');
+                    router.push('/dashboard');
+                    return;
+                }
 
-        // Show initial toast
-        toast.info('Interview started! Good luck! 🎯', {
-            position: 'top-right',
-            autoClose: 3000
-        });
-    }, []);
+                const { session } = await response.json();
+
+                // Set config from DB - SOURCE OF TRUTH
+                setConfig({
+                    type: session.interview_type?.toLowerCase() || 'dsa',
+                    topics: session.topics || [],
+                    difficulty: session.difficulty || 'medium',
+                    questionCount: session.question_count || 3
+                });
+                setIsConfigLoaded(true);
+
+                // Now fetch the active question
+                await fetchQuestionFromDB();
+
+                // Initialize audio
+                if (typeof window !== 'undefined') {
+                    audioPlayerRef.current = new Audio();
+                }
+
+                toast.info('Interview started! Good luck! 🎯', {
+                    position: 'top-right',
+                    autoClose: 3000
+                });
+            } catch (error) {
+                console.error('Error fetching session:', error);
+                toast.error('Failed to load interview session');
+                router.push('/dashboard');
+            }
+        };
+
+        initSession();
+    }, [sessionId, router]);
 
     // Navigation guard: Warn before leaving interview page
     useEffect(() => {
@@ -130,22 +171,17 @@ function InterviewContent() {
         };
 
         window.addEventListener('beforeunload', handleBeforeUnload);
-
-        return () => {
-            window.removeEventListener('beforeunload', handleBeforeUnload);
-        };
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
     }, []);
 
     // Auto-cleanup timer: After 1 hour, call cleanup API
     useEffect(() => {
         const oneHour = 60 * 60 * 1000;
-
         const timer = setTimeout(async () => {
             toast.warning('Interview time limit (1 hour) reached. Auto-completing...', {
                 position: 'top-center',
                 autoClose: 5000
             });
-
             try {
                 await fetch('/api/cleanup-interviews', { method: 'POST' });
                 router.push('/dashboard');
@@ -157,11 +193,10 @@ function InterviewContent() {
         return () => clearTimeout(timer);
     }, [router]);
 
-    // When question changes, update system prompt (only play intro on first question)
+    // When question changes, update system prompt
     useEffect(() => {
-        if (!currentQuestion) return;
+        if (!currentQuestion || !isConfigLoaded) return;
 
-        // Prevent running for the same question twice
         if (lastPlayedQuestionId.current === currentQuestion.title) return;
         lastPlayedQuestionId.current = currentQuestion.title;
 
@@ -171,33 +206,21 @@ function InterviewContent() {
             setCode(`# ${currentQuestion.title}\n# Write your solution here\n\ndef solution():\n    pass`);
         }
 
-        // Only play intro on the FIRST question (page load), never again
         if (isFirstQuestion.current) {
             isFirstQuestion.current = false;
             playIntro(currentQuestion);
         }
-    }, [currentQuestion]);
+    }, [currentQuestion, isConfigLoaded, config, isDSA]);
 
-    // PLANNED ARCHITECTURE: Fetch question from database instead of generating
+    // Fetch question from DB
     const fetchQuestionFromDB = async () => {
         setIsLoadingQuestion(true);
         try {
-            if (!sessionId) {
-                console.error('No session ID available');
-                return;
-            }
-
-            // Fetch the ACTIVE question for this session from DB
             const response = await fetch(`/api/questions?sessionId=${sessionId}&status=active`);
-
-            if (!response.ok) {
-                throw new Error('Failed to fetch question from database');
-            }
+            if (!response.ok) throw new Error('Failed to fetch question');
 
             const { question } = await response.json();
-
             if (question) {
-                // Map database question to frontend format
                 setCurrentQuestion({
                     title: question.question_title,
                     description: question.question_description,
@@ -208,22 +231,19 @@ function InterviewContent() {
                 console.log('✅ Loaded question from DB:', question.question_title);
             }
         } catch (error) {
-            console.error('Error fetching question from database:', error);
+            console.error('Error fetching question:', error);
         } finally {
             setIsLoadingQuestion(false);
         }
     };
 
-    // Keep old function name for compatibility
     const fetchNewQuestion = fetchQuestionFromDB;
 
-    // Helper to play audio and reset state when done
+    // Helper to play audio and reset state
     const playAudio = (audioBase64: string) => {
         if (audioPlayerRef.current && audioBase64 && audioBase64.length > 100) {
             audioPlayerRef.current.src = `data:audio/mp3;base64,${audioBase64}`;
-            audioPlayerRef.current.onended = () => {
-                setInterviewState('idle');
-            };
+            audioPlayerRef.current.onended = () => setInterviewState('idle');
             audioPlayerRef.current.onerror = () => {
                 console.error('Audio playback error');
                 setInterviewState('idle');
@@ -238,11 +258,10 @@ function InterviewContent() {
         }
     };
 
-    // Play AI intro when question loads (only called on first question)
+    // Play AI intro
     const playIntro = async (question: Question, retryCount = 0) => {
         try {
             setInterviewState('processing');
-
             const response = await fetch('/api/generate-intro', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -252,25 +271,19 @@ function InterviewContent() {
             const data = await response.json();
             const { introText, audioBase64 } = data;
 
-            // Add the intro to messages only on first attempt
             if (introText && retryCount === 0) {
-                setMessages(prev => [
-                    ...prev,
-                    { role: 'assistant', content: introText }
-                ]);
+                setMessages(prev => [...prev, { role: 'assistant', content: introText }]);
             }
 
-            // Play the audio if valid
             if (audioBase64 && audioBase64.length > 100) {
                 playAudio(audioBase64);
             } else if (retryCount < 1) {
-                console.log('No audio received, retrying...');
                 setTimeout(() => playIntro(question, 1), 1000);
             } else {
                 setInterviewState('idle');
             }
         } catch (error) {
-            console.error('Error playing intro:', error);
+            console.error('Intro error:', error);
             if (retryCount < 1) {
                 setTimeout(() => playIntro(question, 1), 1000);
             } else {
@@ -287,12 +300,10 @@ function InterviewContent() {
             audioChunksRef.current = [];
 
             mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) {
-                    audioChunksRef.current.push(event.data);
-                }
+                if (event.data.size > 0) audioChunksRef.current.push(event.data);
             };
-
             mediaRecorder.onstop = processAudioTurn;
+
             mediaRecorder.start();
             setInterviewState('listening');
         } catch (err) {
@@ -316,7 +327,7 @@ function InterviewContent() {
 
         const formData = new FormData();
         formData.append('audio', audioBlob);
-        formData.append('sessionId', sessionId || ''); // Backend fetches state from DB
+        formData.append('sessionId', sessionId);
         formData.append('code', code);
         formData.append('currentQuestionTitle', currentQuestion?.title || '');
         formData.append('previousQuestions', JSON.stringify(previousQuestions));
@@ -337,10 +348,8 @@ function InterviewContent() {
                 { role: 'user' as const, content: transcript },
                 { role: 'assistant' as const, content: reply }
             ];
-
             setMessages(updatedMessages);
 
-            // Handle new question if generated
             if (newQuestion) {
                 setPreviousQuestions(prev =>
                     currentQuestion ? [...prev, currentQuestion.title] : prev
@@ -349,22 +358,18 @@ function InterviewContent() {
                 setQuestionsAnswered(prev => prev + 1);
             }
 
-            // ONLY end interview if backend explicitly signals it
             if (shouldEndInterview) {
-                console.log('Question limit reached. Auto-ending interview...');
+                console.log('Interview complete. Redirecting to feedback...');
                 playAudio(audioBase64);
-                // Wait for audio to finish then show end dialog
                 setTimeout(() => {
-                    if (confirm('You have completed all questions! Click OK to see your feedback.')) {
+                    if (confirm('Interview complete! Click OK to see your feedback.')) {
                         endInterview();
                     }
                 }, 2000);
                 return;
             }
 
-            // Play the audio response
             playAudio(audioBase64);
-
         } catch (error) {
             console.error("Turn processing error:", error);
             setInterviewState('idle');
@@ -372,9 +377,9 @@ function InterviewContent() {
         }
     };
 
+    // End interview - redirect to /feedback/{sessionId}
     const endInterview = async () => {
         setIsGeneratingFeedback(true);
-
         toast.info('Generating your feedback report...', {
             position: 'top-center',
             autoClose: 2000
@@ -388,19 +393,14 @@ function InterviewContent() {
                     messages: messages,
                     questions: [currentQuestion?.title, ...previousQuestions].filter(Boolean),
                     interviewType: config.type,
-                    sessionId: sessionId || undefined // Send sessionId if available
+                    sessionId: sessionId
                 })
             });
 
             if (!response.ok) throw new Error('Failed to generate feedback');
 
-            const data = await response.json();
-            const { uid, feedback, feedbackId } = data;
-
-            // If we have a feedbackId from database, use it; otherwise use the temp uid
-            const id = feedbackId || uid;
-            const encodedFeedback = encodeURIComponent(JSON.stringify(feedback));
-            router.push(`/feedback?uid=${id}&data=${encodedFeedback}${sessionId ? `&sessionId=${sessionId}` : ''}`);
+            // Redirect to clean session-based feedback URL
+            router.push(`/feedback/${sessionId}`);
         } catch (error) {
             console.error('Error generating feedback:', error);
             toast.error('Failed to generate feedback. Please try again.', {
@@ -411,21 +411,19 @@ function InterviewContent() {
         }
     };
 
-    // Format interview type for display
-    const formatType = (type: string) => {
-        const typeMap: Record<string, string> = {
-            dsa: 'DSA',
-            frontend: 'Frontend',
-            backend: 'Backend',
-            fullstack: 'Fullstack',
-            cybersecurity: 'Cybersecurity',
-            devops: 'DevOps'
-        };
-        return typeMap[type] || type;
-    };
+    // Show loading while config is being fetched
+    if (!isConfigLoaded) {
+        return (
+            <div className="h-screen w-full bg-[#0d0d0f] flex items-center justify-center">
+                <Loader2 className="w-8 h-8 text-orange-500 animate-spin" />
+            </div>
+        );
+    }
 
     return (
         <div className="h-screen w-full bg-[#0d0d0f] text-white flex overflow-hidden">
+            <ToastContainer />
+
             {/* LEFT: Problem/Question Panel */}
             <div className="w-[320px] min-w-[280px] flex flex-col border-r border-[#2a2a2e] bg-[#0d0d0f]">
                 {/* Header */}
@@ -443,7 +441,7 @@ function InterviewContent() {
                             </span>
                         </div>
                     </div>
-                    <Link href="/setup" className="text-[#6b6b70] hover:text-white transition-colors">
+                    <Link href="/dashboard" className="text-[#6b6b70] hover:text-white transition-colors">
                         <ArrowLeft className="w-4 h-4" />
                     </Link>
                 </div>
@@ -650,17 +648,5 @@ function InterviewContent() {
                 </div>
             </div>
         </div>
-    );
-}
-
-export default function InterviewPage() {
-    return (
-        <Suspense fallback={
-            <div className="h-screen w-full bg-[#0d0d0f] flex items-center justify-center">
-                <Loader2 className="w-8 h-8 text-orange-500 animate-spin" />
-            </div>
-        }>
-            <InterviewContent />
-        </Suspense>
     );
 }

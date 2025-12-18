@@ -32,6 +32,7 @@ interface FeedbackReport {
     overall_verdict: string;
     created_at: string;
     session_id: string;
+    interview_type?: string; // From joined session data
 }
 
 export default function DashboardPage() {
@@ -95,15 +96,23 @@ export default function DashboardPage() {
 
             setSessions(sessionsData || []);
 
-            // Load recent feedback
+            // Load recent feedback with session info for interview type
             const { data: feedbackData } = await supabase
                 .from('feedback_reports')
-                .select('*')
+                .select(`
+                    *,
+                    interview_sessions!session_id (interview_type)
+                `)
                 .eq('user_id', user.id)
                 .order('created_at', { ascending: false })
                 .limit(6);
 
-            setFeedback(feedbackData || []);
+            // Map to flatten the joined data
+            const mappedFeedback = (feedbackData || []).map((fb: { interview_sessions?: { interview_type?: string } } & FeedbackReport) => ({
+                ...fb,
+                interview_type: fb.interview_sessions?.interview_type || 'Unknown'
+            }));
+            setFeedback(mappedFeedback);
         } catch (error) {
             console.error('Error loading dashboard:', error);
         } finally {
@@ -291,11 +300,11 @@ function SessionCard({ session }: { session: InterviewSession }) {
         abandoned: 'bg-red-500/10 text-red-400 border-red-500/20',
     };
 
-    const formatDuration = (seconds: number | null) => {
-        if (!seconds) return 'N/A';
-        const mins = Math.floor(seconds / 60);
-        return `${mins} min`;
-    };
+    // const formatDuration = (seconds: number | null) => {
+    //     if (!seconds) return 'N/A';
+    //     const mins = Math.floor(seconds / 60);
+    //     return `${mins} min`;
+    // };
 
     return (
         <div className="p-6 bg-white/5 border border-white/10 rounded-2xl hover:border-white/20 transition-all">
@@ -308,12 +317,12 @@ function SessionCard({ session }: { session: InterviewSession }) {
                     {session.status}
                 </span>
             </div>
-            <div className="flex items-center gap-4 text-sm text-[#a0a0a5]">
+            {/* <div className="flex items-center gap-4 text-sm text-[#a0a0a5]">
                 <div className="flex items-center gap-1">
                     <Clock className="w-4 h-4" />
                     {formatDuration(session.duration_seconds)}
                 </div>
-            </div>
+            </div> */}
         </div>
     );
 }
@@ -327,11 +336,30 @@ function FeedbackCard({ feedback }: { feedback: FeedbackReport }) {
         'No Hire': 'text-red-400',
     };
 
+    const formatType = (type: string) => {
+        const typeMap: Record<string, string> = {
+            dsa: 'DSA',
+            frontend: 'Frontend',
+            backend: 'Backend',
+            fullstack: 'Fullstack',
+            cybersecurity: 'Cybersecurity',
+            devops: 'DevOps'
+        };
+        return typeMap[type?.toLowerCase()] || type || 'Interview';
+    };
+
     return (
         <div className="p-6 bg-white/5 border border-white/10 rounded-2xl">
-            <div className="text-4xl font-bold mb-2">{feedback.overall_score}/10</div>
-            <div className={`text-sm font-medium mb-2 ${verdictColors[feedback.overall_verdict as keyof typeof verdictColors]}`}>
-                {feedback.overall_verdict}
+            <div className="flex justify-between items-start mb-2">
+                <div className="text-4xl font-bold">{feedback.overall_score}/10</div>
+                {feedback.interview_type && (
+                    <span className="text-xs px-2 py-1 bg-orange-500/20 text-orange-400 rounded">
+                        {formatType(feedback.interview_type)}
+                    </span>
+                )}
+            </div>
+            <div className={`text-sm font-medium mb-2 ${verdictColors[feedback.overall_verdict as keyof typeof verdictColors] || 'text-gray-400'}`}>
+                {feedback.overall_verdict || 'Pending'}
             </div>
             <div className="text-xs text-[#6b6b70]">
                 {new Date(feedback.created_at).toLocaleDateString()}

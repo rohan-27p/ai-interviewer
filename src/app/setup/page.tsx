@@ -101,15 +101,9 @@ export default function SetupPage() {
 
             const { session } = await response.json();
 
-            // Navigate to interview with session ID
-            const params = new URLSearchParams({
-                type: interviewType,
-                topics: selectedTopics.join(','),
-                difficulty: difficulty,
-                questions: questionCount.toString(),
-                sessionId: session.id
-            });
-            router.push(`/interview?${params.toString()}`);
+            // Navigate to interview with clean session-based URL
+            // Config is now fetched from DB, not URL params
+            router.push(`/interview/${session.id}`);
         } catch (error) {
             console.error('Error creating session:', error);
             alert('Failed to start interview. Please try again.');

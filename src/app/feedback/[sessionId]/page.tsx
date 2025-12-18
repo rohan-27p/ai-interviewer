@@ -1,20 +1,26 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import React, { useEffect, useState, useRef, use } from 'react';
+import { useRouter } from 'next/navigation';
 import { ArrowLeft, Trophy, Target, MessageSquare, Lightbulb, TrendingUp, CheckCircle, AlertCircle, Download, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
 interface FeedbackData {
-    overallScore: number;
-    overallVerdict: string;
-    summary: string;
-    strengths: string[];
-    areasForImprovement: string[];
-    technicalSkills: { score: number; feedback: string };
-    problemSolving: { score: number; feedback: string };
-    communication: { score: number; feedback: string };
-    recommendations: string[];
+    overallScore?: number;
+    overallVerdict?: string;
+    summary?: string;
+    strengths?: string[];
+    areasForImprovement?: string[];
+    technicalSkills?: { score: number; feedback: string };
+    problemSolving?: { score: number; feedback: string };
+    communication?: { score: number; feedback: string };
+    recommendations?: string[];
+}
+
+interface SessionData {
+    interview_type: string;
+    difficulty: string;
+    created_at: string;
 }
 
 function ScoreCircle({ score, label }: { score: number; label: string }) {
@@ -34,41 +40,52 @@ function ScoreCircle({ score, label }: { score: number; label: string }) {
     );
 }
 
-function FeedbackContent() {
-    const searchParams = useSearchParams();
+interface PageProps {
+    params: Promise<{ sessionId: string }>;
+}
+
+export default function FeedbackPage({ params }: PageProps) {
+    const { sessionId } = use(params);
     const router = useRouter();
+
     const [feedback, setFeedback] = useState<FeedbackData | null>(null);
+    const [session, setSession] = useState<SessionData | null>(null);
     const [loading, setLoading] = useState(true);
-    const [uid, setUid] = useState<string>('');
+    const [error, setError] = useState<string | null>(null);
     const [isExporting, setIsExporting] = useState(false);
     const contentRef = useRef<HTMLDivElement>(null);
 
+    // Fetch feedback from DB on mount
     useEffect(() => {
-        // TEMP REDIRECT: If sessionId exists, redirect to new route
-        const sessionId = searchParams.get('sessionId');
-        if (sessionId) {
-            console.warn('⚠️ Old URL detected. Redirecting to /feedback/' + sessionId);
-            router.replace(`/feedback/${sessionId}`);
-            return;
-        }
-
-        // Fallback: Parse from URL data if no sessionId (legacy support)
-        const feedbackData = searchParams.get('data');
-        const feedbackUid = searchParams.get('uid');
-
-        if (feedbackData) {
+        const fetchFeedback = async () => {
             try {
-                const parsed = JSON.parse(decodeURIComponent(feedbackData));
-                setFeedback(parsed);
-                setUid(feedbackUid || '');
-            } catch (e) {
-                console.error('Failed to parse feedback:', e);
-            }
-        }
-        setLoading(false);
-    }, [searchParams, router]);
+                const response = await fetch(`/api/sessions/${sessionId}/feedback`);
 
-    const getVerdictColor = (verdict: string) => {
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        setError('Feedback not found for this session');
+                    } else {
+                        setError('Failed to load feedback');
+                    }
+                    return;
+                }
+
+                const data = await response.json();
+                setFeedback(data.feedback);
+                setSession(data.session);
+            } catch (err) {
+                console.error('Error fetching feedback:', err);
+                setError('Failed to load feedback');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchFeedback();
+    }, [sessionId]);
+
+    const getVerdictColor = (verdict: string | undefined | null) => {
+        if (!verdict) return 'text-[#6b6b70] bg-[#2a2a2e]';
         if (verdict.includes('Strong Hire') || verdict.includes('Hire')) return 'text-green-400 bg-green-500/20';
         if (verdict.includes('Lean')) return 'text-yellow-400 bg-yellow-500/20';
         return 'text-red-400 bg-red-500/20';
@@ -76,16 +93,14 @@ function FeedbackContent() {
 
     const exportToPDF = async () => {
         if (!feedback) return;
-
         setIsExporting(true);
 
-        // Create a printable HTML content
         const printContent = `
             <!DOCTYPE html>
             <html>
             <head>
                 <meta charset="UTF-8">
-                <title>Interview Feedback Report - ${uid}</title>
+                <title>Interview Feedback Report - ${sessionId}</title>
                 <style>
                     * { margin: 0; padding: 0; box-sizing: border-box; }
                     body { 
@@ -138,75 +153,25 @@ function FeedbackContent() {
                     }
                     .summary { color: #444; font-size: 14px; }
                     h2 { font-size: 18px; margin: 30px 0 15px; color: #1a1a1a; }
-                    .scores-grid {
-                        display: grid;
-                        grid-template-columns: repeat(3, 1fr);
-                        gap: 20px;
-                        margin-bottom: 30px;
-                    }
-                    .score-card {
-                        padding: 20px;
-                        background: #f8f8f8;
-                        border-radius: 8px;
-                        text-align: center;
-                    }
+                    .scores-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; }
+                    .score-card { padding: 20px; background: #f8f8f8; border-radius: 8px; text-align: center; }
                     .score-card h3 { font-size: 14px; margin-bottom: 10px; color: #666; }
                     .score-card .score { font-size: 28px; font-weight: bold; margin-bottom: 10px; }
                     .score-card p { font-size: 12px; color: #666; }
-                    .two-col {
-                        display: grid;
-                        grid-template-columns: 1fr 1fr;
-                        gap: 20px;
-                        margin-bottom: 30px;
-                    }
+                    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
                     .list-section { padding: 20px; background: #f8f8f8; border-radius: 8px; }
                     .list-section h3 { font-size: 16px; margin-bottom: 12px; }
                     .list-section ul { list-style: none; }
-                    .list-section li { 
-                        padding: 8px 0; 
-                        font-size: 13px; 
-                        border-bottom: 1px solid #e5e5e5;
-                        display: flex;
-                        align-items: flex-start;
-                        gap: 8px;
-                    }
+                    .list-section li { padding: 8px 0; font-size: 13px; border-bottom: 1px solid #e5e5e5; }
                     .list-section li:last-child { border-bottom: none; }
-                    .list-section li::before { 
-                        content: '•'; 
-                        font-weight: bold;
-                        flex-shrink: 0;
-                    }
-                    .strengths li::before { color: #22c55e; }
-                    .improvements li::before { color: #eab308; }
-                    .recommendations {
-                        padding: 20px;
-                        background: #fff7ed;
-                        border-radius: 8px;
-                        border: 1px solid #fed7aa;
-                    }
-                    .recommendations h3 { font-size: 16px; margin-bottom: 12px; color: #f97316; }
-                    .recommendations li::before { color: #f97316; content: counter(item) '.'; counter-increment: item; }
-                    .recommendations ul { counter-reset: item; }
-                    .footer {
-                        margin-top: 40px;
-                        padding-top: 20px;
-                        border-top: 1px solid #e5e5e5;
-                        text-align: center;
-                        color: #999;
-                        font-size: 12px;
-                    }
-                    @media print {
-                        body { padding: 20px; }
-                        .score-section { break-inside: avoid; }
-                        .list-section { break-inside: avoid; }
-                    }
+                    .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e5e5; text-align: center; color: #999; font-size: 12px; }
                 </style>
             </head>
             <body>
                 <div class="header">
                     <div class="logo">🎤 InterviewAI</div>
                     <div>Interview Feedback Report</div>
-                    <div class="uid">Report ID: ${uid} | Generated: ${new Date().toLocaleDateString()}</div>
+                    <div class="uid">Session: ${sessionId} | Generated: ${new Date().toLocaleDateString()}</div>
                 </div>
 
                 <div class="score-section">
@@ -237,50 +202,35 @@ function FeedbackContent() {
                 </div>
 
                 <div class="two-col">
-                    <div class="list-section strengths">
+                    <div class="list-section">
                         <h3>✅ Strengths</h3>
-                        <ul>
-                            ${feedback.strengths.map(s => `<li>${s}</li>`).join('')}
-                        </ul>
+                        <ul>${feedback.strengths.map(s => `<li>• ${s}</li>`).join('')}</ul>
                     </div>
-                    <div class="list-section improvements">
+                    <div class="list-section">
                         <h3>⚠️ Areas for Improvement</h3>
-                        <ul>
-                            ${feedback.areasForImprovement.map(a => `<li>${a}</li>`).join('')}
-                        </ul>
+                        <ul>${feedback.areasForImprovement.map(a => `<li>• ${a}</li>`).join('')}</ul>
                     </div>
                 </div>
 
-                <div class="recommendations">
-                    <h3>📈 Recommendations</h3>
-                    <ul>
-                        ${feedback.recommendations.map(r => `<li>${r}</li>`).join('')}
-                    </ul>
+                <div class="list-section" style="background: #fff7ed; border: 1px solid #fed7aa;">
+                    <h3 style="color: #f97316;">📈 Recommendations</h3>
+                    <ul>${feedback.recommendations.map((r, i) => `<li>${i + 1}. ${r}</li>`).join('')}</ul>
                 </div>
 
-                <div class="footer">
-                    Generated by InterviewAI • Practice makes perfect! 🚀
-                </div>
+                <div class="footer">Generated by InterviewAI • Practice makes perfect! 🚀</div>
             </body>
             </html>
         `;
 
-        // Open print dialog
         const printWindow = window.open('', '_blank');
         if (printWindow) {
             printWindow.document.write(printContent);
             printWindow.document.close();
-
-            // Wait for content to load then print
             printWindow.onload = () => {
                 printWindow.print();
                 setIsExporting(false);
             };
-
-            // Fallback if onload doesn't fire
-            setTimeout(() => {
-                setIsExporting(false);
-            }, 2000);
+            setTimeout(() => setIsExporting(false), 2000);
         } else {
             alert('Please allow popups to download PDF');
             setIsExporting(false);
@@ -295,10 +245,10 @@ function FeedbackContent() {
         );
     }
 
-    if (!feedback) {
+    if (error || !feedback) {
         return (
             <div className="min-h-screen bg-[#0d0d0f] flex flex-col items-center justify-center text-white">
-                <p className="text-xl mb-4">No feedback data found</p>
+                <p className="text-xl mb-4">{error || 'No feedback data found'}</p>
                 <Link href="/dashboard" className="text-orange-500 hover:text-orange-400">
                     ← Return to Dashboard
                 </Link>
@@ -328,9 +278,11 @@ function FeedbackContent() {
                             )}
                             Export PDF
                         </button>
-                        <div className="text-xs text-[#6b6b70]">
-                            ID: {uid}
-                        </div>
+                        {session && (
+                            <div className="text-xs text-[#6b6b70]">
+                                {session.interview_type} • {session.difficulty}
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -340,21 +292,21 @@ function FeedbackContent() {
                 <div className="bg-gradient-to-br from-[#1a1a1e] to-[#141416] rounded-2xl p-8 mb-8 border border-[#2a2a2e]">
                     <div className="flex flex-col md:flex-row items-center gap-8">
                         <div className="flex flex-col items-center">
-                            <div className={`w-32 h-32 rounded-full border-4 flex items-center justify-center ${feedback.overallScore >= 8 ? 'border-green-400 text-green-400' :
-                                feedback.overallScore >= 6 ? 'border-yellow-400 text-yellow-400' :
+                            <div className={`w-32 h-32 rounded-full border-4 flex items-center justify-center ${(feedback.overallScore ?? 0) >= 8 ? 'border-green-400 text-green-400' :
+                                (feedback.overallScore ?? 0) >= 6 ? 'border-yellow-400 text-yellow-400' :
                                     'border-red-400 text-red-400'
                                 }`}>
-                                <span className="text-5xl font-bold">{feedback.overallScore}</span>
+                                <span className="text-5xl font-bold">{feedback.overallScore ?? 0}</span>
                             </div>
                             <span className="text-sm text-[#6b6b70] mt-2">out of 10</span>
                         </div>
 
                         <div className="flex-1 text-center md:text-left">
                             <span className={`inline-block px-4 py-1.5 rounded-full text-sm font-medium ${getVerdictColor(feedback.overallVerdict)}`}>
-                                {feedback.overallVerdict}
+                                {feedback.overallVerdict || 'Pending Review'}
                             </span>
                             <h1 className="text-2xl font-bold mt-4 mb-2">Interview Feedback</h1>
-                            <p className="text-[#b8b8bc] leading-relaxed">{feedback.summary}</p>
+                            <p className="text-[#b8b8bc] leading-relaxed">{feedback.summary || 'No summary available'}</p>
                         </div>
                     </div>
                 </div>
@@ -368,8 +320,8 @@ function FeedbackContent() {
                             </div>
                             <h3 className="font-semibold">Technical Skills</h3>
                         </div>
-                        <ScoreCircle score={feedback.technicalSkills.score} label="Score" />
-                        <p className="text-sm text-[#b8b8bc] mt-4 leading-relaxed">{feedback.technicalSkills.feedback}</p>
+                        <ScoreCircle score={feedback.technicalSkills?.score ?? 0} label="Score" />
+                        <p className="text-sm text-[#b8b8bc] mt-4 leading-relaxed">{feedback.technicalSkills?.feedback || 'No feedback available'}</p>
                     </div>
 
                     <div className="bg-[#1a1a1e] rounded-xl p-6 border border-[#2a2a2e]">
@@ -379,8 +331,8 @@ function FeedbackContent() {
                             </div>
                             <h3 className="font-semibold">Problem Solving</h3>
                         </div>
-                        <ScoreCircle score={feedback.problemSolving.score} label="Score" />
-                        <p className="text-sm text-[#b8b8bc] mt-4 leading-relaxed">{feedback.problemSolving.feedback}</p>
+                        <ScoreCircle score={feedback.problemSolving?.score ?? 0} label="Score" />
+                        <p className="text-sm text-[#b8b8bc] mt-4 leading-relaxed">{feedback.problemSolving?.feedback || 'No feedback available'}</p>
                     </div>
 
                     <div className="bg-[#1a1a1e] rounded-xl p-6 border border-[#2a2a2e]">
@@ -390,8 +342,8 @@ function FeedbackContent() {
                             </div>
                             <h3 className="font-semibold">Communication</h3>
                         </div>
-                        <ScoreCircle score={feedback.communication.score} label="Score" />
-                        <p className="text-sm text-[#b8b8bc] mt-4 leading-relaxed">{feedback.communication.feedback}</p>
+                        <ScoreCircle score={feedback.communication?.score ?? 0} label="Score" />
+                        <p className="text-sm text-[#b8b8bc] mt-4 leading-relaxed">{feedback.communication?.feedback || 'No feedback available'}</p>
                     </div>
                 </div>
 
@@ -405,7 +357,7 @@ function FeedbackContent() {
                             <h3 className="font-semibold">Strengths</h3>
                         </div>
                         <ul className="space-y-3">
-                            {feedback.strengths.map((strength, i) => (
+                            {(feedback.strengths ?? []).map((strength, i) => (
                                 <li key={i} className="flex items-start gap-3">
                                     <span className="w-1.5 h-1.5 rounded-full bg-green-400 mt-2 flex-shrink-0"></span>
                                     <span className="text-sm text-[#b8b8bc]">{strength}</span>
@@ -422,7 +374,7 @@ function FeedbackContent() {
                             <h3 className="font-semibold">Areas for Improvement</h3>
                         </div>
                         <ul className="space-y-3">
-                            {feedback.areasForImprovement.map((area, i) => (
+                            {(feedback.areasForImprovement ?? []).map((area, i) => (
                                 <li key={i} className="flex items-start gap-3">
                                     <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 mt-2 flex-shrink-0"></span>
                                     <span className="text-sm text-[#b8b8bc]">{area}</span>
@@ -441,7 +393,7 @@ function FeedbackContent() {
                         <h3 className="font-semibold">Recommendations for Improvement</h3>
                     </div>
                     <ul className="space-y-3">
-                        {feedback.recommendations.map((rec, i) => (
+                        {(feedback.recommendations ?? []).map((rec, i) => (
                             <li key={i} className="flex items-start gap-3">
                                 <span className="w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center text-xs text-orange-400 flex-shrink-0">
                                     {i + 1}
@@ -476,17 +428,5 @@ function FeedbackContent() {
                 </div>
             </div>
         </div>
-    );
-}
-
-export default function FeedbackPage() {
-    return (
-        <React.Suspense fallback={
-            <div className="min-h-screen bg-[#0d0d0f] flex items-center justify-center">
-                <div className="animate-spin w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full"></div>
-            </div>
-        }>
-            <FeedbackContent />
-        </React.Suspense>
     );
 }

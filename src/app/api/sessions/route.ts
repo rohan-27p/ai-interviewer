@@ -70,7 +70,8 @@ export async function POST(req: Request) {
 
             const { questions } = await questionResponse.json();
 
-            console.log(`Generated ${questions.length} questions. Storing in DB...`);
+            console.log(`Generated ${questions.length} questions:`);
+            questions.forEach((q: any, i: number) => console.log(`  ${i + 1}. ${q.title}`));
 
             // Store each question in interview_questions table
             const questionInserts = questions.map((q: any, index: number) => ({
@@ -86,16 +87,22 @@ export async function POST(req: Request) {
                 status: index === 0 ? 'active' : 'pending', // First question is active
             }));
 
-            const { error: insertError } = await supabase
+            const { data: insertedQuestions, error: insertError } = await supabase
                 .from('interview_questions')
-                .insert(questionInserts);
+                .insert(questionInserts)
+                .select();
 
             if (insertError) {
-                console.error('Error inserting questions:', insertError);
-                // Don't fail - session was created successfully
-                // Questions can be generated on-the-fly as fallback
+                console.error('❌ Error inserting questions:', insertError);
             } else {
-                console.log(`✅ Successfully stored ${questions.length} questions for session ${session.id}`);
+                console.log(`✅ Successfully stored ${insertedQuestions?.length || 0} questions for session ${session.id}`);
+
+                // Verify by counting
+                const { count } = await supabase
+                    .from('interview_questions')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('session_id', session.id);
+                console.log(`✅ Verification: ${count} questions in DB for this session`);
             }
 
         } catch (questionError) {
