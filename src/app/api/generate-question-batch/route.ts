@@ -31,37 +31,43 @@ async function generateQuestionBatch(params: QuestionGenerationParams): Promise<
 
     // Create prompts based on interview type
     const typeSpecificPrompts: Record<string, string> = {
-        'DSA': `Generate ${count} Data Structures and Algorithms coding problems. Each should include:
+        'DSA': `Generate ${count} Data Structures and Algorithms coding problems. ${topicContext}
+Each should include:
 - Problem statement
 - Constraints (array format)
 - Examples with input/output
 - Follow-up guidelines for the interviewer`,
 
-        'Frontend': `Generate ${count} Frontend development questions covering:
+        'Frontend': `Generate ${count} Frontend development questions. ${topicContext}
+Cover:
 - React/Angular/Vue concepts
 - CSS/HTML/JS fundamentals
 - Browser APIs and performance
 - Each with follow-up discussion points`,
 
-        'Backend': `Generate ${count} Backend development questions covering:
+        'Backend': `Generate ${count} Backend development questions. ${topicContext}
+Cover:
 - API design (REST/GraphQL)
 - Database design and optimization
 - System architecture
 - Each with follow-up discussion points`,
 
-        'Fullstack': `Generate ${count} Full-stack development questions covering:
+        'Fullstack': `Generate ${count} Full-stack development questions. ${topicContext}
+Cover:
 - End-to-end feature design
 - Frontend + Backend integration
 - Database and API design
 - Each with follow-up discussion points`,
 
-        'Cybersecurity': `Generate ${count} Cybersecurity questions covering:
+        'Cybersecurity': `Generate ${count} Cybersecurity questions. ${topicContext}
+Cover:
 - Common vulnerabilities (OWASP Top 10)
 - Security best practices
 - Attack vectors and prevention
 - Each with follow-up discussion points`,
 
-        'DevOps': `Generate ${count} DevOps questions covering:
+        'DevOps': `Generate ${count} DevOps questions. ${topicContext}
+Cover:
 - CI/CD pipelines
 - Containerization (Docker/K8s)
 - Cloud infrastructure

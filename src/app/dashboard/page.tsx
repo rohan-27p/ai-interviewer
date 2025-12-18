@@ -49,21 +49,41 @@ export default function DashboardPage() {
 
     const loadDashboardData = async () => {
         try {
-            // Get current user
             const { data: { user } } = await supabase.auth.getUser();
+
             if (!user) {
                 router.push('/login');
                 return;
             }
 
-            // Load user profile
+            // Fetch user statistics from the VIEW (auto-calculated)
+            const { data: stats, error: statsError } = await supabase
+                .from('user_statistics')
+                .select('*')
+                .eq('user_id', user.id)
+                .single();
+
+            if (statsError) {
+                console.error('Error fetching stats:', statsError);
+            }
+
+            // Fetch user profile for avatar and name
             const { data: profileData } = await supabase
                 .from('user_profiles')
-                .select('*')
+                .select('full_name, avatar_url')
                 .eq('id', user.id)
                 .single();
 
-            setProfile(profileData);
+            // Use stats from view if available, otherwise use defaults
+            setProfile({
+                id: user.id, // Assuming user.id is always available
+                full_name: profileData?.full_name || user.email || 'User',
+                avatar_url: profileData?.avatar_url || null,
+                total_interviews: stats?.total_interviews || 0,
+                total_questions_solved: stats?.total_questions_attempted || 0, // From view!
+                average_score: stats?.average_score || 0,
+                created_at: user.created_at, // Assuming user.created_at is available
+            });
 
             // Load recent sessions (last 5)
             const { data: sessionsData } = await supabase
@@ -81,7 +101,7 @@ export default function DashboardPage() {
                 .select('*')
                 .eq('user_id', user.id)
                 .order('created_at', { ascending: false })
-                .limit(5);
+                .limit(6);
 
             setFeedback(feedbackData || []);
         } catch (error) {
@@ -151,7 +171,7 @@ export default function DashboardPage() {
                     />
                     <StatCard
                         icon={<Target className="w-6 h-6" />}
-                        label="Questions Solved"
+                        label="Questions Attempted"
                         value={profile?.total_questions_solved || 0}
                         color="purple"
                     />
@@ -234,7 +254,8 @@ export default function DashboardPage() {
                         <h2 className="text-2xl font-bold mb-6">Recent Feedback</h2>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {feedback.map((fb) => (
-                                <FeedbackCard key={fb.id} feedback={fb} />
+                                <FeedbackCard key={fb.id} feedback=
+                                    {fb} />
                             ))}
                         </div>
                     </div>

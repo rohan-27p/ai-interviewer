@@ -8,10 +8,9 @@ import { createClient as createSupabaseClient } from '@/lib/supabase/server';
 const deepgram = createClient(process.env.DEEPGRAM_API_KEY ?? '');
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-// Constants
+//Constants
 const MURF_API_KEY = process.env.MURF_API_KEY;
 
-// Keywords that indicate user wants to move to next question
 const NEXT_QUESTION_TRIGGERS = [
     'next question',
     'move on',
@@ -26,10 +25,12 @@ const NEXT_QUESTION_TRIGGERS = [
 ];
 
 export async function POST(req: Request) {
+    const totalStart = Date.now();
+
     try {
         const supabase = await createSupabaseClient();
 
-        // Authenticate user
+        //Authenticate user
         const { data: { user }, error: authError } = await supabase.auth.getUser();
 
         if (authError || !user) {
@@ -44,7 +45,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Missing audio' }, { status: 400 });
         }
 
-        // FIX #3: Fetch state from DATABASE, not client
+        //Fetch state from DATABASE, not client
         if (!sessionId) {
             return NextResponse.json({ error: 'Session ID required' }, { status: 400 });
         }
@@ -63,27 +64,41 @@ export async function POST(req: Request) {
 
         // Get state from DATABASE (source of truth)
         const conversationHistory: Message[] = session.messages || [];
-        const currentQuestionIndex = session.current_question_index || 0;
         const maxQuestions = session.num_questions;
         const code = formData.get('code') as string || '';
-        const currentQuestionTitle = formData.get('currentQuestionTitle') as string || '';
-        const previousQuestionsStr = formData.get('previousQuestions') as string || '[]';
-        const previousQuestions: string[] = JSON.parse(previousQuestionsStr);
 
-        // HARD STOP: Enforce question limit at backend
-        const isFinalQuestion = currentQuestionIndex >= maxQuestions - 1;
-        const hasReachedLimit = currentQuestionIndex >= maxQuestions;
+        //Check question status from DB instead of index
+        const { data: activeQuestion } = await supabase
+            .from('interview_questions')
+            .select('question_order, question_title')
+            .eq('session_id', sessionId)
+            .eq('status', 'active')
+            .single();
+
+        const currentQuestionTitle = activeQuestion?.question_title || '';
+        const currentQuestionIndex = activeQuestion ? activeQuestion.question_order - 1 : 0;
+
+        //Check if there are any questions left
+        const { count } = await supabase
+            .from('interview_questions')
+            .select('*', { count: 'exact', head: true })
+            .eq('session_id', sessionId)
+            .in('status', ['active', 'pending']);
+
+        const questionsRemaining = count || 0;
+        const isFinalQuestion = questionsRemaining === 1;
+        const hasReachedLimit = questionsRemaining === 0;
 
         if (hasReachedLimit) {
+            console.log('No more questions - interview complete');
             return NextResponse.json({
                 error: 'Interview complete',
                 shouldEndInterview: true
-            }, { status: 400 });
+            }, { status: 200 }); // Changed to 200, not an error
         }
 
-        // ------------------------------------------------------------------
-        // 1. STT: Deepgram SDK (Nova-2)
-        // ------------------------------------------------------------------
+        //STT:Deepgram SDK (Nova-2)
+        const sttStart = Date.now();
         const audioBuffer = Buffer.from(await audioFile.arrayBuffer());
 
         const { result, error } = await deepgram.listen.prerecorded.transcribeFile(
@@ -101,6 +116,8 @@ export async function POST(req: Request) {
         }
 
         const userTranscript = result?.results?.channels[0]?.alternatives[0]?.transcript;
+        const sttTime = Date.now() - sttStart;
+        console.log(`⏱️ STT: ${sttTime}ms`);
 
         if (!userTranscript) {
             return NextResponse.json({ error: 'No speech detected' }, { status: 400 });
@@ -108,40 +125,88 @@ export async function POST(req: Request) {
 
         console.log('User said:', userTranscript);
 
-        // ------------------------------------------------------------------
-        // 2. LLM: Groq (Llama 3.3) with STRUCTURED OUTPUT
-        // ------------------------------------------------------------------
+        //LLM: Groq (Llama 3.3) with STRUCTURED OUTPUT
+        const { data: dbQuestion } = await supabase
+            .from('interview_questions')
+            .select('question_title, question_description, question_type, question_difficulty, followup_count')
+            .eq('session_id', sessionId)
+            .eq('status', 'active')
+            .single();
 
-        // FIX #1: Separate system context from user message
-        const systemPrompt = `You are an expert technical interviewer conducting a ${session.interview_type} interview.
+        const actualQuestionTitle = dbQuestion?.question_title || currentQuestionTitle;
+        const actualQuestionDescription = dbQuestion?.question_description || '';
+        const actualQuestionType = dbQuestion?.question_type || session.interview_type;
+        const actualDifficulty = dbQuestion?.question_difficulty || 'Medium';
+        const currentFollowupCount = dbQuestion?.followup_count || 0;
+
+        // DIFFICULTY-BASED FOLLOW-UP LIMITS
+        const followupLimits: Record<string, number> = {
+            'Easy': 1,
+            'Medium': 2,
+            'Hard': 3
+        };
+        const maxFollowups = followupLimits[actualDifficulty] || 2;
+        const followupsRemaining = maxFollowups - currentFollowupCount;
+
+        const systemPrompt = `You are an expert technical interviewer conducting a ${actualQuestionType.toUpperCase()} interview.
+
+=== CRITICAL: STAY ON THIS EXACT QUESTION ===
+QUESTION TITLE: "${actualQuestionTitle}"
+QUESTION DESCRIPTION: ${actualQuestionDescription}
+DIFFICULTY: ${actualDifficulty}
+
+THIS IS THE ONLY QUESTION YOU ARE EVALUATING. DO NOT:
+- Ask about other topics or programming languages
+- Generate new coding problems  
+- Deviate from the question above
+- Ask DSA questions if this is a Backend/Frontend/etc interview
+
+YOUR ONLY JOB:
+1. Evaluate the candidate's answer to THE QUESTION ABOVE
+2. Ask clarifying follow-ups ABOUT THE QUESTION ABOVE
+3. Correct errors in their explanation or code
+4. Guide them if stuck with hints RELATED TO THE QUESTION ABOVE
+
+=== FOLLOW-UP RULES (${actualDifficulty} DIFFICULTY) ===
+- Maximum follow-ups for this question: ${maxFollowups}
+- Follow-ups asked so far: ${currentFollowupCount}
+- Follow-ups remaining: ${followupsRemaining}
+
+${followupsRemaining > 0 ? `
+YOU MUST ASK ${followupsRemaining} MORE FOLLOW-UP(S) before marking complete:
+- If user's answer is incomplete, ask for clarification
+- If user's code has bugs, point them out and ask to fix
+- If user's explanation is wrong, correct them and ask follow-up
+- Ask about edge cases, complexity, or alternative approaches
+- Each follow-up must be BASED ON what the user said/wrote
+` : `
+ALL FOLLOW-UPS EXHAUSTED. You must now:
+- Give brief final evaluation of their answer
+- Mark [STATUS:COMPLETE] to move to next question
+- Do NOT ask more questions about this topic
+`}
 
 Current Code State:
 \`\`\`
 ${code}
 \`\`\`
 
-Interview Rules:
+Interview Progress:
 - This is question ${currentQuestionIndex + 1} of ${maxQuestions}
-${isFinalQuestion ? '- THIS IS THE FINAL QUESTION. After evaluation, the interview ends.' : ''}
-- Be encouraging and helpful but CONCISE
-- Keep responses under 3-4 sentences unless explaining complex concepts
-- Ask focused follow-up questions to understand thought process
-- Guide them if stuck, but don't give away the answer
+${isFinalQuestion ? '- THIS IS THE FINAL QUESTION. After evaluation, interview ends.' : ''}
 
 RESPONSE STYLE:
-- Be conversational and natural, like a real interviewer
-- Avoid repeating what the candidate just said
-- Ask ONE follow-up question at a time, not multiple
-- Keep it brief - you're having a conversation, not writing an essay
+- Be encouraging, conversational, and CONCISE (2-3 sentences max)
+- Ask ONE focused follow-up at a time about THE QUESTION ABOVE
+- If candidate is off-topic, gently redirect: "Let's focus on ${actualQuestionTitle}..."
+- Don't repeat what they just said
+- Correct errors constructively: "I noticed X, can you fix that?"
 
-IMPORTANT: At the end of your response, add a status tag:
-- If the candidate has fully solved the current problem AND you believe they're ready to move on, end with: [STATUS:COMPLETE]
-- Otherwise, end with: [STATUS:CONTINUE]
+STATUS TAGS (REQUIRED):
+- [STATUS:COMPLETE] = ALL follow-ups done (${currentFollowupCount}/${maxFollowups}) AND question answered
+- [STATUS:CONTINUE] = Still have follow-ups remaining OR answer incomplete
 
-Only use [STATUS:COMPLETE] when:
-1. The candidate provided a correct, working solution
-2. You've evaluated their approach and it's solid
-3. They've answered your follow-up questions satisfactorily`;
+REMEMBER: You are ONLY evaluating "${actualQuestionTitle}" with exactly ${maxFollowups} follow-ups!`;
 
         const messages = [
             { role: 'system', content: systemPrompt },
@@ -149,28 +214,41 @@ Only use [STATUS:COMPLETE] when:
             { role: 'user', content: userTranscript }
         ];
 
+        const llmStart = Date.now();
         const completion = await groq.chat.completions.create({
             messages: messages as any[],
             model: 'llama-3.3-70b-versatile',
             temperature: 0.6,
-            max_tokens: 150, // Reduced from 300 for conciseness
+            max_tokens: 150,
         });
+        const llmTime = Date.now() - llmStart;
+        console.log(`⏱️ LLM: ${llmTime}ms`);
 
         const aiReply = completion.choices[0]?.message?.content || "I didn't catch that.";
         console.log('AI replied:', aiReply);
 
-        // FIX #2: Parse structured status tag instead of text matching
-        const statusMatch = aiReply.match(/\[STATUS:(COMPLETE|CONTINUE)\]/);
+        // FIX: Parse status tag with OPTIONAL space (handles both [STATUS:COMPLETE] and [STATUS: COMPLETE])
+        const statusMatch = aiReply.match(/\[STATUS:\s*(COMPLETE|CONTINUE)\]/);
         const aiStatus = statusMatch ? statusMatch[1] : 'CONTINUE';
 
         // Remove status tag from user-visible reply
-        const cleanReply = aiReply.replace(/\[STATUS:(COMPLETE|CONTINUE)\]/, '').trim();
+        const cleanReply = aiReply.replace(/\[STATUS:\s*(COMPLETE|CONTINUE)\]/, '').trim();
 
         console.log('AI Status:', aiStatus);
 
-        // ------------------------------------------------------------------
-        // 3. PLANNED ARCHITECTURE: Fetch next question from DATABASE
-        // ------------------------------------------------------------------
+        // INCREMENT FOLLOW-UP COUNT when AI continues discussion
+        if (aiStatus === 'CONTINUE' && dbQuestion) {
+            const newFollowupCount = currentFollowupCount + 1;
+            await supabase
+                .from('interview_questions')
+                .update({ followup_count: newFollowupCount })
+                .eq('session_id', sessionId)
+                .eq('status', 'active');
+
+            console.log(`Follow-up count: ${newFollowupCount}/${maxFollowups}`);
+        }
+
+        //fetch next question from DB
         let newQuestion: Question | null = null;
 
         // Check if user explicitly requested next question
@@ -233,6 +311,35 @@ Only use [STATUS:COMPLETE] when:
                 };
 
                 console.log('✅ Next question activated:', newQuestion.title);
+
+                // CRITICAL FIX: Generate intro for the NEW question
+                try {
+                    const introRes = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/generate-intro`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            question: newQuestion,
+                            interviewType: session.interview_type,
+                            isFirstQuestion: false // Tell API this is NOT first question
+                        })
+                    });
+
+                    if (introRes.ok) {
+                        // FIX: Field names are introText and audioBase64, NOT intro and audio!
+                        const { introText, audioBase64 } = await introRes.json();
+                        console.log(`Generated intro for new question`);
+
+                        // Early return with new question intro
+                        return NextResponse.json({
+                            reply: introText,  // Use 'reply' to match frontend expectation
+                            audioBase64,       // Use correct field name
+                            newQuestion,
+                            shouldEndInterview: false
+                        });
+                    }
+                } catch (err) {
+                    console.error('Failed to generate intro:', err);
+                }
             } else {
                 console.log('No more questions in database');
             }
@@ -262,9 +369,8 @@ Only use [STATUS:COMPLETE] when:
             console.log('Signaling interview end.');
         }
 
-        // ------------------------------------------------------------------
-        // 4. TTS: Murf AI (Falcon Model)
-        // ------------------------------------------------------------------
+        //TTS: Murf AI(Falcon Model) GOAT!
+        const ttsStart = Date.now();
         const murfUrl = 'https://global.api.murf.ai/v1/speech/stream';
         const murfPayload = {
             voiceId: 'en-US-matthew',
@@ -293,6 +399,11 @@ Only use [STATUS:COMPLETE] when:
 
         const audioArrayBuffer = await murfResponse.arrayBuffer();
         const audioBase64 = Buffer.from(audioArrayBuffer).toString('base64');
+        const ttsTime = Date.now() - ttsStart;
+        console.log(`⏱️ TTS: ${ttsTime}ms`);
+
+        const totalTime = Date.now() - totalStart;
+        console.log(`⏱️ TOTAL TURN: ${totalTime}ms (STT: ${sttTime}ms, LLM: ${llmTime}ms, TTS: ${ttsTime}ms)`);
 
         // Update session in database with new messages
         const updatedMessages = [

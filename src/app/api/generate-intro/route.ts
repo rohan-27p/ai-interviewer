@@ -23,7 +23,18 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2)
 }
 
 // Type-specific intro prompts
-function getIntroPrompt(interviewType: string): string {
+function getIntroPrompt(interviewType: string, isFirstQuestion: boolean): string {
+    // For subsequent questions, skip greetings entirely
+    const subsequentPrompt = `You are continuing a technical interview. Generate a BRIEF transition to the next question.
+Keep it under 2 sentences. Do NOT say "Hello", "Hi", "Welcome", or any greeting - you're already mid-interview.
+Just say something like "Great, let's move on to..." or "Now let's discuss..." then the topic.
+Do NOT repeat what they answered before.`;
+
+    if (!isFirstQuestion) {
+        return subsequentPrompt;
+    }
+
+    // First question prompts (with greeting)
     const prompts: Record<string, string> = {
         dsa: `You are a friendly technical interviewer. Generate a brief introduction for a coding interview question. 
 Keep it under 3 sentences. Be warm but professional.
@@ -55,26 +66,37 @@ Mention the topic and invite them to share their experience with infrastructure 
 }
 
 export async function POST(req: Request) {
+    const totalStart = Date.now();
+
     try {
         const body = await req.json();
-        const { question, interviewType = 'dsa' } = body as { question: Question; interviewType?: string };
+        const { question, interviewType = 'dsa', isFirstQuestion = true } = body as {
+            question: Question;
+            interviewType?: string;
+            isFirstQuestion?: boolean;
+        };
 
         if (!question) {
             return NextResponse.json({ error: 'No question provided' }, { status: 400 });
         }
 
-        // Generate intro message using LLM
+        // ⏱️ TIMING: LLM Intro Generation
+        const llmStart = Date.now();
         let introText: string;
         try {
             const completion = await groq.chat.completions.create({
                 messages: [
                     {
                         role: 'system',
-                        content: getIntroPrompt(interviewType)
+                        content: getIntroPrompt(interviewType, isFirstQuestion)
                     },
                     {
                         role: 'user',
-                        content: `Generate an intro for this ${interviewType === 'dsa' ? 'question' : 'topic'}:
+                        content: isFirstQuestion
+                            ? `Generate an intro for this ${interviewType === 'dsa' ? 'question' : 'topic'}:
+Title: ${question.title}
+Description: ${question.description}`
+                            : `Generate a brief transition to this next ${interviewType === 'dsa' ? 'question' : 'topic'}:
 Title: ${question.title}
 Description: ${question.description}`
                     }
@@ -89,6 +111,8 @@ Description: ${question.description}`
             console.error('LLM Error:', llmError);
             introText = '';
         }
+        const llmTime = Date.now() - llmStart;
+        console.log(`⏱️ INTRO LLM: ${llmTime}ms`);
 
         // Use fallback if empty
         if (!introText || introText.length < 10) {
@@ -99,12 +123,13 @@ Description: ${question.description}`
 
         console.log('Generated intro:', introText);
 
-        // Generate TTS audio with retry
+        // ⏱️ TIMING: TTS Generation
         if (!MURF_API_KEY) {
             console.error('MURF_API_KEY not set');
             return NextResponse.json({ introText, audioBase64: null });
         }
 
+        const ttsStart = Date.now();
         const murfUrl = 'https://global.api.murf.ai/v1/speech/stream';
         const murfPayload = {
             voiceId: 'en-US-matthew',
@@ -126,6 +151,9 @@ Description: ${question.description}`
                 body: JSON.stringify(murfPayload)
             });
 
+            const ttsTime = Date.now() - ttsStart;
+            console.log(`⏱️ INTRO TTS: ${ttsTime}ms`);
+
             if (!murfResponse.ok) {
                 const errText = await murfResponse.text();
                 console.error('Murf TTS Error:', errText);
@@ -141,9 +169,13 @@ Description: ${question.description}`
 
             const audioBase64 = Buffer.from(audioArrayBuffer).toString('base64');
 
+            const totalTime = Date.now() - totalStart;
+            console.log(`⏱️ INTRO TOTAL: ${totalTime}ms (LLM: ${llmTime}ms, TTS: ${ttsTime}ms)`);
+
             return NextResponse.json({
                 introText,
-                audioBase64
+                audioBase64,
+                timing: { llm: llmTime, tts: ttsTime, total: totalTime }
             });
         } catch (ttsError) {
             console.error('TTS Error after retries:', ttsError);

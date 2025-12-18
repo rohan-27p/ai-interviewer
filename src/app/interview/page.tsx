@@ -7,6 +7,8 @@ import VoiceInterface from '@/components/VoiceInterface';
 import { Message, InterviewState, Question } from '@/lib/types';
 import { Square, Mic, Loader2, XCircle, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 // Interview config type
 interface InterviewConfig {
@@ -103,7 +105,49 @@ function InterviewContent() {
         if (typeof window !== 'undefined') {
             audioPlayerRef.current = new Audio();
         }
+
+        // Show initial toast
+        toast.info('Interview started! Good luck! 🎯', {
+            position: 'top-right',
+            autoClose: 3000
+        });
     }, []);
+
+    // Navigation guard: Warn before leaving interview page
+    useEffect(() => {
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            e.preventDefault();
+            e.returnValue = 'You have an active interview. Are you sure you want to leave? This will end your interview.';
+            return e.returnValue;
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+        };
+    }, []);
+
+    // Auto-cleanup timer: After 1 hour, call cleanup API
+    useEffect(() => {
+        const oneHour = 60 * 60 * 1000;
+
+        const timer = setTimeout(async () => {
+            toast.warning('Interview time limit (1 hour) reached. Auto-completing...', {
+                position: 'top-center',
+                autoClose: 5000
+            });
+
+            try {
+                await fetch('/api/cleanup-interviews', { method: 'POST' });
+                router.push('/dashboard');
+            } catch (error) {
+                console.error('Cleanup failed:', error);
+            }
+        }, oneHour);
+
+        return () => clearTimeout(timer);
+    }, [router]);
 
     // When question changes, update system prompt (only play intro on first question)
     useEffect(() => {
@@ -321,11 +365,12 @@ function InterviewContent() {
     };
 
     const endInterview = async () => {
-        if (!confirm('Are you sure you want to end the interview? This will generate your feedback report.')) {
-            return;
-        }
-
         setIsGeneratingFeedback(true);
+
+        toast.info('Generating your feedback report...', {
+            position: 'top-center',
+            autoClose: 2000
+        });
 
         try {
             const response = await fetch('/api/feedback', {
@@ -350,7 +395,10 @@ function InterviewContent() {
             router.push(`/feedback?uid=${id}&data=${encodedFeedback}${sessionId ? `&sessionId=${sessionId}` : ''}`);
         } catch (error) {
             console.error('Error generating feedback:', error);
-            alert('Failed to generate feedback. Please try again.');
+            toast.error('Failed to generate feedback. Please try again.', {
+                position: 'top-center',
+                autoClose: 5000
+            });
             setIsGeneratingFeedback(false);
         }
     };
