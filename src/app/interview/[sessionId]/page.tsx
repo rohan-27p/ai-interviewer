@@ -114,18 +114,37 @@ export default function InterviewPage({ params }: PageProps) {
     const lastPlayedQuestionId = useRef<string | null>(null);
     const isFirstQuestion = useRef(true);
 
-    // 1. Fetch session config from DB on mount
+    // 1. Fetch session config from DB on mount with security validation
     useEffect(() => {
         if (hasInitialized.current) return;
         hasInitialized.current = true;
 
         const initSession = async () => {
             try {
-                // Fetch session details from DB
+                // SECURITY: Check for duplicate tabs
+                const lockKey = `interview_lock_${sessionId}`;
+                const existingLock = localStorage.getItem(lockKey);
+                if (existingLock && Date.now() - parseInt(existingLock) < 5000) {
+                    toast.error('Interview already open in another tab!');
+                    router.replace('/dashboard');
+                    return;
+                }
+                localStorage.setItem(lockKey, Date.now().toString());
+
+                // Fetch session details from DB - BACKEND IS SOURCE OF TRUTH
                 const response = await fetch(`/api/sessions/${sessionId}`);
+
+                // SECURITY: Handle 403 (completed/abandoned) with redirect
+                if (response.status === 403) {
+                    const data = await response.json();
+                    toast.error(data.error || 'Session not accessible');
+                    router.replace(data.redirectTo || '/dashboard');
+                    return;
+                }
+
                 if (!response.ok) {
                     toast.error('Session not found. Redirecting...');
-                    router.push('/dashboard');
+                    router.replace('/dashboard');
                     return;
                 }
 
@@ -155,43 +174,78 @@ export default function InterviewPage({ params }: PageProps) {
             } catch (error) {
                 console.error('Error fetching session:', error);
                 toast.error('Failed to load interview session');
-                router.push('/dashboard');
+                router.replace('/dashboard');
             }
         };
 
         initSession();
+
+        // CLEANUP: Remove lock on unmount
+        return () => {
+            localStorage.removeItem(`interview_lock_${sessionId}`);
+        };
     }, [sessionId, router]);
 
-    // Navigation guard: Warn before leaving interview page
+    // SECURITY: Comprehensive navigation guards
     useEffect(() => {
+        // 1. Warn on tab close/refresh
         const handleBeforeUnload = (e: BeforeUnloadEvent) => {
             e.preventDefault();
-            e.returnValue = 'You have an active interview. Are you sure you want to leave? This will end your interview.';
+            e.returnValue = 'You have an active interview. Are you sure you want to leave?';
             return e.returnValue;
         };
 
-        window.addEventListener('beforeunload', handleBeforeUnload);
-        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-    }, []);
+        // 2. Block back/forward navigation using history manipulation
+        const handlePopState = () => {
+            // Push state again to prevent navigation
+            window.history.pushState(null, '', window.location.href);
+            toast.warning('Please use the End Interview button to exit.', {
+                position: 'top-center',
+                autoClose: 2000
+            });
+        };
 
-    // Auto-cleanup timer: After 1 hour, call cleanup API
+        // Push initial state to enable popstate blocking
+        window.history.pushState(null, '', window.location.href);
+
+        // 3. Keep tab lock alive
+        const lockInterval = setInterval(() => {
+            localStorage.setItem(`interview_lock_${sessionId}`, Date.now().toString());
+        }, 2000);
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        window.addEventListener('popstate', handlePopState);
+
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+            window.removeEventListener('popstate', handlePopState);
+            clearInterval(lockInterval);
+        };
+    }, [sessionId]);
+
+    // Auto-cleanup timer: After 1 hour, auto-end interview
     useEffect(() => {
         const oneHour = 60 * 60 * 1000;
         const timer = setTimeout(async () => {
-            toast.warning('Interview time limit (1 hour) reached. Auto-completing...', {
+            toast.warning('Interview time limit (1 hour) reached. Generating feedback...', {
                 position: 'top-center',
                 autoClose: 5000
             });
+            // Mark as abandoned and redirect
             try {
-                await fetch('/api/cleanup-interviews', { method: 'POST' });
-                router.push('/dashboard');
-            } catch (error) {
-                console.error('Cleanup failed:', error);
+                await fetch(`/api/sessions/${sessionId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'abandoned' })
+                });
+            } catch (err) {
+                console.error('Failed to mark session as abandoned:', err);
             }
+            router.replace('/dashboard');
         }, oneHour);
 
         return () => clearTimeout(timer);
-    }, [router]);
+    }, [router, sessionId]);
 
     // When question changes, update system prompt
     useEffect(() => {
@@ -377,7 +431,7 @@ export default function InterviewPage({ params }: PageProps) {
         }
     };
 
-    // End interview - redirect to /feedback/{sessionId}
+    // End interview - mark as completed and redirect to /feedback/{sessionId}
     const endInterview = async () => {
         setIsGeneratingFeedback(true);
         toast.info('Generating your feedback report...', {
@@ -386,6 +440,7 @@ export default function InterviewPage({ params }: PageProps) {
         });
 
         try {
+            // Generate feedback
             const response = await fetch('/api/feedback', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -399,8 +454,18 @@ export default function InterviewPage({ params }: PageProps) {
 
             if (!response.ok) throw new Error('Failed to generate feedback');
 
-            // Redirect to clean session-based feedback URL
-            router.push(`/feedback/${sessionId}`);
+            // SECURITY: Mark session as completed in backend (source of truth)
+            await fetch(`/api/sessions/${sessionId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'completed' })
+            });
+
+            // SECURITY: Remove tab lock
+            localStorage.removeItem(`interview_lock_${sessionId}`);
+
+            // SECURITY: Use replace to prevent back navigation
+            router.replace(`/feedback/${sessionId}`);
         } catch (error) {
             console.error('Error generating feedback:', error);
             toast.error('Failed to generate feedback. Please try again.', {
@@ -408,6 +473,13 @@ export default function InterviewPage({ params }: PageProps) {
                 autoClose: 5000
             });
             setIsGeneratingFeedback(false);
+        }
+    };
+
+    // Handler with confirmation dialog
+    const handleEndInterview = () => {
+        if (confirm('Are you sure you want to end the interview? This will generate your feedback report.')) {
+            endInterview();
         }
     };
 
@@ -537,7 +609,7 @@ export default function InterviewPage({ params }: PageProps) {
                             Auto-saved
                         </span>
                         <button
-                            onClick={endInterview}
+                            onClick={handleEndInterview}
                             disabled={isGeneratingFeedback || messages.length < 2}
                             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${isGeneratingFeedback
                                 ? 'bg-red-500/50 cursor-wait'

@@ -62,6 +62,16 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Session not found' }, { status: 404 });
         }
 
+        // SECURITY: Reject if session is not active (source of truth)
+        if (session.status !== 'active') {
+            console.log(`❌ Rejected process-turn: session ${sessionId} is ${session.status}`);
+            return NextResponse.json({
+                error: 'Interview is no longer active',
+                shouldEndInterview: true,
+                redirectTo: session.status === 'completed' ? `/feedback/${sessionId}` : '/dashboard'
+            }, { status: 403 });
+        }
+
         // Get state from DATABASE (source of truth)
         const conversationHistory: Message[] = session.messages || [];
         const maxQuestions = session.num_questions;
@@ -345,7 +355,7 @@ REMEMBER: You are ONLY evaluating "${actualQuestionTitle}" with exactly ${maxFol
             }
 
         } else if (isFinalQuestion && (userRequestedNext || aiStatus === 'COMPLETE')) {
-            // User finished final question - mark as completed
+            //User finished final question - mark as completed
             console.log('Final question complete. Marking as completed...');
 
             const { data: finalQ } = await supabase

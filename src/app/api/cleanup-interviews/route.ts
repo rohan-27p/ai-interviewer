@@ -13,7 +13,7 @@ export async function POST(req: Request) {
             .from('interview_sessions')
             .select('id')
             .eq('status', 'active')
-            .lt('started_at', oneHourAgo);
+            .lt('created_at', oneHourAgo); // Use created_at since started_at may be NULL
 
         if (error) {
             console.error('Error fetching old sessions:', error);
