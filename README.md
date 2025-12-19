@@ -275,17 +275,12 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ---
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
 <div align="center">
-  <p>Built with ❤️ for developers who want to ace their next interview</p>
+  <p>Built with ❤️ by <b>Rohan</b> for developers who want to ace their next interview</p>
   <p>
-    <a href="https://github.com/yourusername/interview-ai">⭐ Star this repo</a> •
-    <a href="https://github.com/yourusername/interview-ai/issues">🐛 Report Bug</a> •
-    <a href="https://github.com/yourusername/interview-ai/issues">✨ Request Feature</a>
+    <a href="https://github.com/rohan-27/AI_Interviewer">⭐ Star this repo</a> •
+    <a href="https://github.com/rohan-27/AI_Interviewer/issues">🐛 Report Bug</a> •
+    <a href="https://github.com/rohan-27/AI_Interviewer/issues">✨ Request Feature</a>
   </p>
 </div>
+
