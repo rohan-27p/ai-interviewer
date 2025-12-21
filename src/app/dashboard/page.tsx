@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Mic, Trophy, Target, Clock, ArrowRight, LogOut, User, BookOpen, TrendingUp } from 'lucide-react';
+import { Mic, Trophy, Target, Clock, ArrowRight, LogOut, BookOpen, TrendingUp, Star } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
 interface UserProfile {
@@ -82,10 +82,10 @@ export default function DashboardPage() {
                 full_name: profileData?.full_name || user.email || 'User',
                 avatar_url: profileData?.avatar_url || null,
                 total_interviews: stats?.total_interviews || 0,
-                total_questions_solved: stats?.total_questions_attempted || 0, // From view!
+                total_questions_solved: stats?.total_questions_attempted || 0, //From view!
                 questions_completed: stats?.questions_completed || 0,
                 average_score: stats?.average_score || 0,
-                created_at: user.created_at, // Assuming user.created_at is available
+                created_at: user.created_at,
             });
 
             // Load recent sessions (last 5)
@@ -193,9 +193,28 @@ export default function DashboardPage() {
                         color="blue"
                     />
                     <StatCard
-                        icon={<BookOpen className="w-6 h-6" />}
-                        label="Active Sessions"
-                        value={sessions.filter(s => s.status === 'active').length}
+                        icon={<Star className="w-6 h-6" />}
+                        label="Top Subject"
+                        value={(() => {
+                            // Calculate most frequent interview type
+                            const typeCounts: Record<string, number> = {};
+                            sessions.forEach(s => {
+                                const type = s.interview_type || 'Unknown';
+                                typeCounts[type] = (typeCounts[type] || 0) + 1;
+                            });
+                            const topType = Object.entries(typeCounts).sort((a, b) => b[1] - a[1])[0];
+                            if (!topType) return 'None';
+                            // Format nicely
+                            const typeMap: Record<string, string> = {
+                                dsa: 'DSA', DSA: 'DSA',
+                                frontend: 'Frontend', Frontend: 'Frontend',
+                                backend: 'Backend', Backend: 'Backend',
+                                fullstack: 'Fullstack', Fullstack: 'Fullstack',
+                                devops: 'DevOps', DevOps: 'DevOps',
+                                cybersecurity: 'Security'
+                            };
+                            return typeMap[topType[0]] || topType[0];
+                        })()}
                         color="green"
                     />
                 </div>
