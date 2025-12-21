@@ -11,6 +11,7 @@ interface UserProfile {
     full_name: string | null;
     avatar_url: string | null;
     total_interviews: number;
+    questions_completed: number;
     total_questions_solved: number;
     average_score: number;
     created_at: string;
@@ -82,6 +83,7 @@ export default function DashboardPage() {
                 avatar_url: profileData?.avatar_url || null,
                 total_interviews: stats?.total_interviews || 0,
                 total_questions_solved: stats?.total_questions_attempted || 0, // From view!
+                questions_completed: stats?.questions_completed || 0,
                 average_score: stats?.average_score || 0,
                 created_at: user.created_at, // Assuming user.created_at is available
             });
@@ -180,8 +182,8 @@ export default function DashboardPage() {
                     />
                     <StatCard
                         icon={<Target className="w-6 h-6" />}
-                        label="Questions Attempted"
-                        value={profile?.total_questions_solved || 0}
+                        label="Questions Solved/Attempted"
+                        value={`${profile?.questions_completed}/${profile?.total_questions_solved}` || 0}
                         color="purple"
                     />
                     <StatCard

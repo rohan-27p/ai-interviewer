@@ -129,7 +129,7 @@ export default function SetupPage() {
             {/* Header */}
             <div className="border-b border-white/10">
                 <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-                    <Link href="/" className="flex items-center gap-2 text-[#6b6b70] hover:text-white transition-colors">
+                    <Link href="/dashboard" className="flex items-center gap-2 text-[#6b6b70] hover:text-white transition-colors">
                         <ArrowLeft className="w-4 h-4" />
                         Back
                     </Link>

@@ -76,10 +76,10 @@ function InterviewContent() {
     const isDSA = config.type === 'dsa';
     const sessionId = searchParams.get('sessionId');
 
-    // TEMP REDIRECT: If sessionId exists, redirect to new clean URL
+    //TEMP REDIRECT: If sessionId exists, redirect to new clean URL
     useEffect(() => {
         if (sessionId) {
-            console.warn('⚠️ Old URL detected. Redirecting to /interview/' + sessionId);
+            console.warn('Old URL detected. Redirecting to /interview/' + sessionId);
             router.replace(`/interview/${sessionId}`);
         }
     }, [sessionId, router]);
