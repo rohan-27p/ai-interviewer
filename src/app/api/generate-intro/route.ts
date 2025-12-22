@@ -70,10 +70,11 @@ export async function POST(req: Request) {
 
     try {
         const body = await req.json();
-        const { question, interviewType = 'dsa', isFirstQuestion = true } = body as {
+        const { question, interviewType = 'dsa', isFirstQuestion = true, voiceId = 'en-US-matthew' } = body as {
             question: Question;
             interviewType?: string;
             isFirstQuestion?: boolean;
+            voiceId?: string;
         };
 
         if (!question) {
@@ -131,10 +132,14 @@ Description: ${question.description}`
 
         const ttsStart = Date.now();
         const murfUrl = 'https://global.api.murf.ai/v1/speech/stream';
+
+        // Extract locale from voice ID (e.g., 'en-US-matthew' -> 'en-US')
+        const locale = voiceId.split('-').slice(0, 2).join('-');
+
         const murfPayload = {
-            voiceId: 'en-US-matthew',
+            voiceId: voiceId,
             text: introText,
-            multiNativeLocale: 'en-US',
+            multiNativeLocale: locale,
             model: 'FALCON',
             format: 'MP3',
             sampleRate: 24000,

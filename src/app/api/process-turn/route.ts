@@ -382,10 +382,16 @@ REMEMBER: You are ONLY evaluating "${actualQuestionTitle}" with exactly ${maxFol
         //TTS: Murf AI(Falcon Model) GOAT!
         const ttsStart = Date.now();
         const murfUrl = 'https://global.api.murf.ai/v1/speech/stream';
+
+        // Get voice from session or default to US
+        const voiceId = session.voice_id || 'en-US-matthew';
+        // Extract locale from voice ID (e.g., 'en-US-matthew' -> 'en-US')
+        const locale = voiceId.split('-').slice(0, 2).join('-');
+
         const murfPayload = {
-            voiceId: 'en-US-matthew',
+            voiceId: voiceId,
             text: cleanReply,
-            multiNativeLocale: 'en-US',
+            multiNativeLocale: locale,
             model: 'FALCON',
             format: 'MP3',
             sampleRate: 24000,

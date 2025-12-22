@@ -31,11 +31,20 @@ const DIFFICULTIES = [
     { id: 'hard', name: 'Hard', description: 'Senior/Staff level', color: 'red' },
 ];
 
+// English accent options with Murf voice IDs
+const ACCENTS = [
+    { id: 'en-US', name: 'English - US', flag: '🇺🇸', voiceId: 'en-US-matthew', description: 'American accent' },
+    { id: 'en-UK', name: 'English - UK', flag: '🇬🇧', voiceId: 'en-UK-finley', description: 'British accent' },
+    { id: 'en-IN', name: 'English - India', flag: '🇮🇳', voiceId: 'en-IN-samar', description: 'Indian accent' },
+    { id: 'en-AU', name: 'English - Australia', flag: '🇦🇺', voiceId: 'en-AU-jimm', description: 'Australian accent' },
+];
+
 export default function SetupPage() {
     const router = useRouter();
     const [interviewType, setInterviewType] = useState<string>('dsa');
     const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
     const [difficulty, setDifficulty] = useState<string>('medium');
+    const [voiceAccent, setVoiceAccent] = useState<string>('en-US');
     const [questionCount, setQuestionCount] = useState<number>(3);
     const [isCreatingSession, setIsCreatingSession] = useState(false);
 
@@ -84,6 +93,7 @@ export default function SetupPage() {
 
 
             // Create session in database with snake_case keys
+            const selectedAccent = ACCENTS.find(a => a.id === voiceAccent);
             const response = await fetch('/api/sessions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -91,7 +101,8 @@ export default function SetupPage() {
                     interview_type: formatInterviewType(interviewType),
                     difficulty: capitalizedDifficulty,
                     topics: selectedTopics.length > 0 ? selectedTopics : availableTopics,
-                    num_questions: questionCount
+                    num_questions: questionCount,
+                    voice_id: selectedAccent?.voiceId || 'en-US-matthew'
                 })
             });
 
@@ -101,9 +112,8 @@ export default function SetupPage() {
 
             const { session } = await response.json();
 
-            // Navigate to interview with clean session-based URL
-            // Config is now fetched from DB, not URL params
-            router.push(`/interview/${session.id}`);
+            // Navigate to instructions page first (user must accept before interview)
+            router.push(`/instructions/${session.id}`);
         } catch (error) {
             console.error('Error creating session:', error);
             alert('Failed to start interview. Please try again.');
@@ -212,6 +222,31 @@ export default function SetupPage() {
                                 >
                                     <div className="font-medium capitalize">{diff.name}</div>
                                     <div className="text-xs text-[#6b6b70]">{diff.description}</div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </section>
+
+                {/* Accent Selection */}
+                <section>
+                    <h2 className="text-xl font-bold mb-2">Interviewer Accent</h2>
+                    <p className="text-[#6b6b70] text-sm mb-4">Choose the voice accent for your AI interviewer</p>
+
+                    <div className="flex flex-wrap gap-2">
+                        {ACCENTS.map((accent) => {
+                            const isSelected = voiceAccent === accent.id;
+                            return (
+                                <button
+                                    key={accent.id}
+                                    onClick={() => setVoiceAccent(accent.id)}
+                                    className={`px-4 py-2 rounded-lg border transition-all flex items-center gap-2 ${isSelected
+                                        ? 'border-purple-500 bg-purple-500/20 text-white'
+                                        : 'border-white/10 text-[#a0a0a5] hover:border-purple-500/50 hover:text-white'
+                                        }`}
+                                >
+                                    <span className="text-base">{accent.flag}</span>
+                                    <span className="text-sm font-medium">{accent.name.replace('English - ', '')}</span>
                                 </button>
                             );
                         })}

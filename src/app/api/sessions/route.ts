@@ -14,7 +14,7 @@ export async function POST(req: Request) {
         }
 
         const body = await req.json();
-        const { interview_type, difficulty, topics, num_questions } = body;
+        const { interview_type, difficulty, topics, num_questions, voice_id } = body;
 
         // Validate input
         if (!interview_type || !difficulty || !topics || !num_questions) {
@@ -30,6 +30,7 @@ export async function POST(req: Request) {
                 difficulty,
                 topics,
                 num_questions,
+                voice_id: voice_id || 'en-US-matthew', // Default to US accent
                 status: 'active',
                 messages: [],
                 current_question_index: 0,

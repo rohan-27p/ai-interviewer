@@ -51,6 +51,13 @@ export default function DashboardPage() {
 
     const loadDashboardData = async () => {
         try {
+            // Auto-cleanup stale sessions (>1 hour) before loading stats
+            try {
+                await fetch('/api/cleanup-interviews', { method: 'POST' });
+            } catch (e) {
+                console.warn('Cleanup skipped:', e);
+            }
+
             const { data: { user } } = await supabase.auth.getUser();
 
             if (!user) {

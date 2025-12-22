@@ -16,6 +16,7 @@ interface InterviewConfig {
     topics: string[];
     difficulty: string;
     questionCount: number;
+    voiceId: string;  // TTS voice for accent
 }
 
 // Helper function to safely stringify values for display
@@ -88,7 +89,8 @@ export default function InterviewPage({ params }: PageProps) {
         type: 'dsa',
         topics: [],
         difficulty: 'medium',
-        questionCount: 3
+        questionCount: 3,
+        voiceId: 'en-US-matthew'
     });
     const [isConfigLoaded, setIsConfigLoaded] = useState(false);
 
@@ -155,7 +157,8 @@ export default function InterviewPage({ params }: PageProps) {
                     type: session.interview_type?.toLowerCase() || 'dsa',
                     topics: session.topics || [],
                     difficulty: session.difficulty || 'medium',
-                    questionCount: session.question_count || 3
+                    questionCount: session.num_questions || 3,
+                    voiceId: session.voice_id || 'en-US-matthew'
                 });
                 setIsConfigLoaded(true);
 
@@ -319,7 +322,11 @@ export default function InterviewPage({ params }: PageProps) {
             const response = await fetch('/api/generate-intro', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ question, interviewType: config.type })
+                body: JSON.stringify({
+                    question,
+                    interviewType: config.type,
+                    voiceId: config.voiceId  // Pass accent preference
+                })
             });
 
             const data = await response.json();
