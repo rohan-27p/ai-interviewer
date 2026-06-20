@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 // Auto-complete interviews that have been active for more than 1 hour
 export async function POST(req: Request) {
     try {
-        const supabase = await createClient();
+        const supabase = createClient();
 
         // Get all active sessions that are older than 1 hour
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -13,7 +13,7 @@ export async function POST(req: Request) {
             .from('interview_sessions')
             .select('id')
             .eq('status', 'active')
-            .lt('created_at', oneHourAgo); // Use created_at since started_at may be NULL
+            .lt('created_at', oneHourAgo);
 
         if (error) {
             console.error('Error fetching old sessions:', error);
@@ -43,15 +43,14 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Failed to update sessions' }, { status: 500 });
         }
 
-        console.log(`✅ Auto-completed ${sessionIds.length} abandoned interview(s)`);
-
         return NextResponse.json({
-            message: 'Sessions cleaned up successfully',
-            count: sessionIds.length
+            message: `Cleaned up ${oldSessions.length} sessions.`,
+            count: oldSessions.length
         });
 
-    } catch (error) {
-        console.error('Cleanup error:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    } catch (e) {
+        console.error('Cleanup error:', e);
+        return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
     }
 }
+

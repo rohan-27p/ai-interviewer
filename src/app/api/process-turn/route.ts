@@ -324,7 +324,7 @@ REMEMBER: You are ONLY evaluating "${actualQuestionTitle}" with exactly ${maxFol
 
                 // CRITICAL FIX: Generate intro for the NEW question
                 try {
-                    const introRes = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/generate-intro`, {
+                    const introRes = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:1337'}/api/generate-intro`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({

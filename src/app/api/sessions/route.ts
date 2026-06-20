@@ -51,7 +51,7 @@ export async function POST(req: Request) {
 
         try {
             // Call batch generation API
-            const questionResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/generate-question-batch`, {
+            const questionResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:1337'}/api/generate-question-batch`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
