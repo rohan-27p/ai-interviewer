@@ -298,18 +298,30 @@ npm run build
 npm run lint
 ```
 
+## 13. CI (GitHub Actions)
+
+Workflow: `.github/workflows/ci.yml`
+
+| Job | Command | Gate |
+|-----|---------|------|
+| **Build** | `npm ci` + `npm run build` | Required — blocks merge |
+| **Lint** | `npm run lint` | Required — blocks merge |
+
+Runs on push/PR to `main`. Uses placeholder env vars for build (no secrets in CI).
+
 ---
 
-## 13. Changelog (doc-level)
+## 14. Changelog (doc-level)
 
 | Date | Change |
 |------|--------|
+| 2026-06-20 | GitHub Actions CI (build + lint) |
 | 2026-06-20 | Initial PROJECT_CONTROL.md; fresh Supabase schema; dev port 1337 |
 | 2026-06-20 | Code review, roadmap, scalable schema design captured |
 
 ---
 
-## 14. Open decisions
+## 15. Open decisions
 
 1. **Schema:** Stay on current `schema.sql` until P0 done, then migrate to turn-based schema?
 2. **TTS:** Keep Murf vs add faster fallback for replies?
