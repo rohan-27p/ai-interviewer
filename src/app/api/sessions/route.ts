@@ -1,5 +1,18 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import type { Database } from '@/lib/supabase/database.types';
+
+interface GeneratedQuestionPayload {
+    title: string;
+    description: string;
+    difficulty: string;
+    type?: string;
+    constraints?: string[];
+    examples?: unknown[];
+    followup_guidelines?: string[];
+}
+
+type SessionUpdate = Database['public']['Tables']['interview_sessions']['Update'];
 
 // Create a new interview session
 export async function POST(req: Request) {
@@ -72,10 +85,10 @@ export async function POST(req: Request) {
             const { questions } = await questionResponse.json();
 
             console.log(`Generated ${questions.length} questions:`);
-            questions.forEach((q: any, i: number) => console.log(`  ${i + 1}. ${q.title}`));
+            questions.forEach((q: GeneratedQuestionPayload, i: number) => console.log(`  ${i + 1}. ${q.title}`));
 
             // Store each question in interview_questions table
-            const questionInserts = questions.map((q: any, index: number) => ({
+            const questionInserts = questions.map((q: GeneratedQuestionPayload, index: number) => ({
                 session_id: session.id,
                 question_title: q.title,
                 question_description: q.description,
@@ -174,7 +187,7 @@ export async function PATCH(req: Request) {
             return NextResponse.json({ error: 'Session ID required' }, { status: 400 });
         }
 
-        const updateData: any = {};
+        const updateData: SessionUpdate = {};
         if (messages !== undefined) updateData.messages = messages;
         if (status !== undefined) updateData.status = status;
         if (currentQuestionIndex !== undefined) updateData.current_question_index = currentQuestionIndex;

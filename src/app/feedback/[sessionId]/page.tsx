@@ -94,6 +94,14 @@ export default function FeedbackPage({ params }: PageProps) {
     const exportToPDF = async () => {
         if (!feedback) return;
         setIsExporting(true);
+        const overallScore = feedback.overallScore ?? 0;
+        const overallVerdict = feedback.overallVerdict ?? 'Pending';
+        const technicalSkills = feedback.technicalSkills ?? { score: 0, feedback: '' };
+        const problemSolving = feedback.problemSolving ?? { score: 0, feedback: '' };
+        const communication = feedback.communication ?? { score: 0, feedback: '' };
+        const strengths = feedback.strengths ?? [];
+        const areasForImprovement = feedback.areasForImprovement ?? [];
+        const recommendations = feedback.recommendations ?? [];
 
         const printContent = `
             <!DOCTYPE html>
@@ -132,13 +140,13 @@ export default function FeedbackPage({ params }: PageProps) {
                         width: 100px;
                         height: 100px;
                         border-radius: 50%;
-                        border: 4px solid ${feedback.overallScore >= 8 ? '#22c55e' : feedback.overallScore >= 6 ? '#eab308' : '#ef4444'};
+                        border: 4px solid ${overallScore >= 8 ? '#22c55e' : overallScore >= 6 ? '#eab308' : '#ef4444'};
                         display: flex;
                         align-items: center;
                         justify-content: center;
                         font-size: 36px;
                         font-weight: bold;
-                        color: ${feedback.overallScore >= 8 ? '#22c55e' : feedback.overallScore >= 6 ? '#eab308' : '#ef4444'};
+                        color: ${overallScore >= 8 ? '#22c55e' : overallScore >= 6 ? '#eab308' : '#ef4444'};
                         flex-shrink: 0;
                     }
                     .verdict {
@@ -148,8 +156,8 @@ export default function FeedbackPage({ params }: PageProps) {
                         font-size: 14px;
                         font-weight: 500;
                         margin-bottom: 10px;
-                        background: ${feedback.overallVerdict.includes('Hire') ? '#dcfce7' : feedback.overallVerdict.includes('Lean') ? '#fef9c3' : '#fee2e2'};
-                        color: ${feedback.overallVerdict.includes('Hire') ? '#166534' : feedback.overallVerdict.includes('Lean') ? '#854d0e' : '#dc2626'};
+                        background: ${overallVerdict.includes('Hire') ? '#dcfce7' : overallVerdict.includes('Lean') ? '#fef9c3' : '#fee2e2'};
+                        color: ${overallVerdict.includes('Hire') ? '#166534' : overallVerdict.includes('Lean') ? '#854d0e' : '#dc2626'};
                     }
                     .summary { color: #444; font-size: 14px; }
                     h2 { font-size: 18px; margin: 30px 0 15px; color: #1a1a1a; }
@@ -175,10 +183,10 @@ export default function FeedbackPage({ params }: PageProps) {
                 </div>
 
                 <div class="score-section">
-                    <div class="main-score">${feedback.overallScore}</div>
+                    <div class="main-score">${overallScore}</div>
                     <div>
-                        <div class="verdict">${feedback.overallVerdict}</div>
-                        <p class="summary">${feedback.summary}</p>
+                        <div class="verdict">${overallVerdict}</div>
+                        <p class="summary">${feedback.summary ?? ''}</p>
                     </div>
                 </div>
 
@@ -186,35 +194,35 @@ export default function FeedbackPage({ params }: PageProps) {
                 <div class="scores-grid">
                     <div class="score-card">
                         <h3>Technical Skills</h3>
-                        <div class="score" style="color: ${feedback.technicalSkills.score >= 8 ? '#22c55e' : feedback.technicalSkills.score >= 6 ? '#eab308' : '#ef4444'}">${feedback.technicalSkills.score}/10</div>
-                        <p>${feedback.technicalSkills.feedback}</p>
+                        <div class="score" style="color: ${technicalSkills.score >= 8 ? '#22c55e' : technicalSkills.score >= 6 ? '#eab308' : '#ef4444'}">${technicalSkills.score}/10</div>
+                        <p>${technicalSkills.feedback}</p>
                     </div>
                     <div class="score-card">
                         <h3>Problem Solving</h3>
-                        <div class="score" style="color: ${feedback.problemSolving.score >= 8 ? '#22c55e' : feedback.problemSolving.score >= 6 ? '#eab308' : '#ef4444'}">${feedback.problemSolving.score}/10</div>
-                        <p>${feedback.problemSolving.feedback}</p>
+                        <div class="score" style="color: ${problemSolving.score >= 8 ? '#22c55e' : problemSolving.score >= 6 ? '#eab308' : '#ef4444'}">${problemSolving.score}/10</div>
+                        <p>${problemSolving.feedback}</p>
                     </div>
                     <div class="score-card">
                         <h3>Communication</h3>
-                        <div class="score" style="color: ${feedback.communication.score >= 8 ? '#22c55e' : feedback.communication.score >= 6 ? '#eab308' : '#ef4444'}">${feedback.communication.score}/10</div>
-                        <p>${feedback.communication.feedback}</p>
+                        <div class="score" style="color: ${communication.score >= 8 ? '#22c55e' : communication.score >= 6 ? '#eab308' : '#ef4444'}">${communication.score}/10</div>
+                        <p>${communication.feedback}</p>
                     </div>
                 </div>
 
                 <div class="two-col">
                     <div class="list-section">
                         <h3>✅ Strengths</h3>
-                        <ul>${feedback.strengths.map(s => `<li>• ${s}</li>`).join('')}</ul>
+                        <ul>${strengths.map(s => `<li>• ${s}</li>`).join('')}</ul>
                     </div>
                     <div class="list-section">
                         <h3>⚠️ Areas for Improvement</h3>
-                        <ul>${feedback.areasForImprovement.map(a => `<li>• ${a}</li>`).join('')}</ul>
+                        <ul>${areasForImprovement.map(a => `<li>• ${a}</li>`).join('')}</ul>
                     </div>
                 </div>
 
                 <div class="list-section" style="background: #fff7ed; border: 1px solid #fed7aa;">
                     <h3 style="color: #f97316;">📈 Recommendations</h3>
-                    <ul>${feedback.recommendations.map((r, i) => `<li>${i + 1}. ${r}</li>`).join('')}</ul>
+                    <ul>${recommendations.map((r, i) => `<li>${i + 1}. ${r}</li>`).join('')}</ul>
                 </div>
 
                 <div class="footer">Generated by InterviewAI • Practice makes perfect! 🚀</div>

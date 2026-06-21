@@ -1,12 +1,24 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Mic, Loader2, Mail, Lock, Chrome } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
 export default function LoginPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-[#0a0a0b] flex items-center justify-center">
+                <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+            </div>
+        }>
+            <LoginForm />
+        </Suspense>
+    );
+}
+
+function LoginForm() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const redirectTo = searchParams.get('redirect') || '/dashboard';
@@ -33,8 +45,8 @@ export default function LoginPage() {
 
             // Successful login
             router.push(redirectTo);
-        } catch (err: any) {
-            setError(err.message || 'Failed to sign in');
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : 'Failed to sign in');
         } finally {
             setLoading(false);
         }
@@ -53,8 +65,8 @@ export default function LoginPage() {
             });
 
             if (error) throw error;
-        } catch (err: any) {
-            setError(err.message || 'Failed to sign in with Google');
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : 'Failed to sign in with Google');
             setLoading(false);
         }
     };
@@ -173,7 +185,7 @@ export default function LoginPage() {
 
                     {/* Sign Up Link */}
                     <p className="mt-6 text-center text-sm text-[#a0a0a5]">
-                        Don't have an account?{' '}
+                        Don&apos;t have an account?{' '}
                         <Link href="/signup" className="text-orange-400 hover:text-orange-300 font-medium transition-colors">
                             Sign up
                         </Link>

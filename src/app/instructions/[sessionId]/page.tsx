@@ -104,7 +104,7 @@ export default function InterviewInstructionsPage({ params }: PageProps) {
                                 </li>
                                 <li className="flex items-center gap-2">
                                     <span className="w-1.5 h-1.5 bg-orange-400 rounded-full"></span>
-                                    <span>Use the <strong className="text-orange-300">"End Interview"</strong> button when you're finished</span>
+                                    <span>Use the <strong className="text-orange-300">&quot;End Interview&quot;</strong> button when you&apos;re finished</span>
                                 </li>
                             </ul>
                         </div>
@@ -120,7 +120,7 @@ export default function InterviewInstructionsPage({ params }: PageProps) {
                             <ul className="text-sm text-[#a0a0a5] space-y-1 mt-2">
                                 <li>• Think out loud and explain your reasoning</li>
                                 <li>• Ask questions if something is unclear</li>
-                                <li>• It's okay to take your time</li>
+                                <li>• It&apos;s okay to take your time</li>
                                 <li>• Focus on your approach, not just the final answer</li>
                             </ul>
                         </div>
@@ -130,7 +130,7 @@ export default function InterviewInstructionsPage({ params }: PageProps) {
                 {/* Motivational Message */}
                 <div className="p-6 bg-gradient-to-r from-orange-500/10 to-purple-500/10 border border-orange-500/20 rounded-2xl text-center mb-8">
                     <p className="text-lg font-medium text-white mb-1">
-                        ✨ You've got this!
+                        ✨ You&apos;ve got this!
                     </p>
                     <p className="text-[#a0a0a5]">
                         Take a deep breath, believe in yourself, and show us what you can do.

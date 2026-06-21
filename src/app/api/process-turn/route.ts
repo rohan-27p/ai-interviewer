@@ -73,7 +73,7 @@ export async function POST(req: Request) {
         }
 
         // Get state from DATABASE (source of truth)
-        const conversationHistory: Message[] = session.messages || [];
+        const conversationHistory: Message[] = (session.messages as Message[] | null) ?? [];
         const maxQuestions = session.num_questions;
         const code = formData.get('code') as string || '';
 
@@ -226,7 +226,7 @@ REMEMBER: You are ONLY evaluating "${actualQuestionTitle}" with exactly ${maxFol
 
         const llmStart = Date.now();
         const completion = await groq.chat.completions.create({
-            messages: messages as any[],
+            messages: messages as Message[],
             model: 'llama-3.3-70b-versatile',
             temperature: 0.6,
             max_tokens: 150,
@@ -317,7 +317,7 @@ REMEMBER: You are ONLY evaluating "${actualQuestionTitle}" with exactly ${maxFol
                     description: nextQ.question_description,
                     difficulty: nextQ.question_difficulty,
                     constraints: nextQ.constraints || [],
-                    examples: nextQ.examples || []
+                    examples: (nextQ.examples as unknown as Question['examples']) ?? [],
                 };
 
                 console.log('✅ Next question activated:', newQuestion.title);

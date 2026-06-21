@@ -15,6 +15,10 @@ interface FeedbackReport {
     created_at: string;
     interview_type?: string;
     difficulty?: string;
+    interview_sessions?: {
+        interview_type: string;
+        difficulty: string;
+    } | null;
 }
 
 export default function FeedbackListPage() {
@@ -51,7 +55,7 @@ export default function FeedbackListPage() {
                 console.error('Error fetching feedback:', error);
             } else {
                 // Map to flatten the joined data
-                const mapped = (feedbackData || []).map((fb: any) => ({
+                const mapped = (feedbackData || []).map((fb: FeedbackReport) => ({
                     ...fb,
                     interview_type: fb.interview_sessions?.interview_type || 'Unknown',
                     difficulty: fb.interview_sessions?.difficulty || 'Unknown'

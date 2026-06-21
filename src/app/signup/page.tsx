@@ -50,8 +50,8 @@ export default function SignupPage() {
 
             // Successful signup
             router.push('/dashboard');
-        } catch (err: any) {
-            setError(err.message || 'Failed to create account');
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : 'Failed to create account');
         } finally {
             setLoading(false);
         }
@@ -70,8 +70,8 @@ export default function SignupPage() {
             });
 
             if (error) throw error;
-        } catch (err: any) {
-            setError(err.message || 'Failed to sign up with Google');
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : 'Failed to sign up with Google');
             setLoading(false);
         }
     };

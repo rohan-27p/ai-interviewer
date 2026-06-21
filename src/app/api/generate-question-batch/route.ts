@@ -17,7 +17,7 @@ interface GeneratedQuestion {
     difficulty: string;
     type: string;
     constraints?: string[];
-    examples?: any[];
+    examples?: Record<string, unknown>[];
     followup_guidelines?: string[];
 }
 
@@ -261,7 +261,7 @@ const FALLBACK_POOLS: Record<string, GeneratedQuestion[]> = {
 };
 
 function getFallbackQuestions(type: string, difficulty: string, count: number): GeneratedQuestion[] {
-    let pool = FALLBACK_POOLS[type] || FALLBACK_POOLS['DSA'];
+    const pool = FALLBACK_POOLS[type] || FALLBACK_POOLS['DSA'];
 
     // Filter by difficulty if specified, but fall back to all if not enough
     let filtered = pool.filter(q => q.difficulty === difficulty);

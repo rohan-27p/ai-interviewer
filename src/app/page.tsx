@@ -89,7 +89,7 @@ export default function HomePage() {
                 {/* Interview Types Preview */}
                 <div className="mt-32 text-center">
                     <h2 className="text-3xl font-bold mb-4">Master Any Interview</h2>
-                    <p className="text-[#a0a0a5] mb-12">Practice for the exact role you're targeting</p>
+                    <p className="text-[#a0a0a5] mb-12">Practice for the exact role you&apos;re targeting</p>
 
                     <div className="flex flex-wrap justify-center gap-3">
                         {['DSA', 'Frontend', 'Backend', 'Fullstack', 'Cybersecurity', 'DevOps', 'System Design'].map((type) => (

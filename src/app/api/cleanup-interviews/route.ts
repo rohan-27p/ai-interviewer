@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
 // Auto-complete interviews that have been active for more than 1 hour
-export async function POST(req: Request) {
+export async function POST(_req: Request) {
     try {
-        const supabase = createClient();
+        const supabase = await createClient();
 
         // Get all active sessions that are older than 1 hour
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -28,13 +28,13 @@ export async function POST(req: Request) {
         }
 
         // Mark all these sessions as abandoned
-        const sessionIds = oldSessions.map(s => s.id);
+        const sessionIds = oldSessions.map((s: { id: string }) => s.id);
 
         const { error: updateError } = await supabase
             .from('interview_sessions')
             .update({
-                status: 'abandoned',
-                completed_at: new Date().toISOString()
+                status: 'abandoned' as const,
+                completed_at: new Date().toISOString(),
             })
             .in('id', sessionIds);
 

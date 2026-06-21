@@ -1,4 +1,4 @@
-// Database type definitions generated from Supabase schema
+// Database type definitions — keep in sync with supabase/schema.sql
 export type Json =
     | string
     | number
@@ -7,7 +7,7 @@ export type Json =
     | { [key: string]: Json | undefined }
     | Json[]
 
-export interface Database {
+export type Database = {
     public: {
         Tables: {
             user_profiles: {
@@ -41,6 +41,7 @@ export interface Database {
                     created_at?: string
                     updated_at?: string
                 }
+                Relationships: []
             }
             interview_sessions: {
                 Row: {
@@ -50,6 +51,7 @@ export interface Database {
                     difficulty: 'Easy' | 'Medium' | 'Hard'
                     topics: string[]
                     num_questions: number
+                    voice_id: string
                     status: 'active' | 'completed' | 'abandoned'
                     current_question_index: number
                     messages: Json
@@ -66,6 +68,7 @@ export interface Database {
                     difficulty: 'Easy' | 'Medium' | 'Hard'
                     topics: string[]
                     num_questions?: number
+                    voice_id?: string
                     status?: 'active' | 'completed' | 'abandoned'
                     current_question_index?: number
                     messages?: Json
@@ -82,6 +85,7 @@ export interface Database {
                     difficulty?: 'Easy' | 'Medium' | 'Hard'
                     topics?: string[]
                     num_questions?: number
+                    voice_id?: string
                     status?: 'active' | 'completed' | 'abandoned'
                     current_question_index?: number
                     messages?: Json
@@ -91,62 +95,81 @@ export interface Database {
                     created_at?: string
                     updated_at?: string
                 }
+                Relationships: []
             }
             interview_questions: {
                 Row: {
                     id: string
                     session_id: string
-                    user_id: string
                     question_title: string
                     question_description: string
                     question_difficulty: 'Easy' | 'Medium' | 'Hard'
                     question_type: string
                     constraints: string[] | null
                     examples: Json | null
+                    followup_guidelines: string[] | null
+                    question_order: number
+                    status: 'pending' | 'active' | 'completed'
+                    followup_count: number
                     user_code: string | null
+                    user_answer: string | null
                     is_completed: boolean
-                    asked_at: string
+                    asked_at: string | null
                     completed_at: string | null
                     time_spent_seconds: number | null
-                    question_order: number
                     created_at: string
                 }
                 Insert: {
                     id?: string
                     session_id: string
-                    user_id: string
                     question_title: string
                     question_description: string
                     question_difficulty: 'Easy' | 'Medium' | 'Hard'
                     question_type: string
                     constraints?: string[] | null
                     examples?: Json | null
+                    followup_guidelines?: string[] | null
+                    question_order: number
+                    status?: 'pending' | 'active' | 'completed'
+                    followup_count?: number
                     user_code?: string | null
+                    user_answer?: string | null
                     is_completed?: boolean
-                    asked_at?: string
+                    asked_at?: string | null
                     completed_at?: string | null
                     time_spent_seconds?: number | null
-                    question_order: number
                     created_at?: string
                 }
                 Update: {
                     id?: string
                     session_id?: string
-                    user_id?: string
                     question_title?: string
                     question_description?: string
                     question_difficulty?: 'Easy' | 'Medium' | 'Hard'
                     question_type?: string
                     constraints?: string[] | null
                     examples?: Json | null
+                    followup_guidelines?: string[] | null
+                    question_order?: number
+                    status?: 'pending' | 'active' | 'completed'
+                    followup_count?: number
                     user_code?: string | null
+                    user_answer?: string | null
                     is_completed?: boolean
-                    asked_at?: string
+                    asked_at?: string | null
                     completed_at?: string | null
                     time_spent_seconds?: number | null
-                    question_order?: number
                     created_at?: string
                 }
+                Relationships: [
+                    {
+                        foreignKeyName: 'interview_questions_session_id_fkey'
+                        columns: ['session_id']
+                        isOneToOne: false
+                        referencedRelation: 'interview_sessions'
+                        referencedColumns: ['id']
+                    },
+                ]
             }
             feedback_reports: {
                 Row: {
@@ -206,6 +229,15 @@ export interface Database {
                     full_feedback_json?: Json | null
                     created_at?: string
                 }
+                Relationships: [
+                    {
+                        foreignKeyName: 'feedback_reports_session_id_fkey'
+                        columns: ['session_id']
+                        isOneToOne: true
+                        referencedRelation: 'interview_sessions'
+                        referencedColumns: ['id']
+                    },
+                ]
             }
         }
         Views: {
@@ -220,12 +252,18 @@ export interface Database {
                     total_questions_attempted: number
                     questions_completed: number
                 }
+                Insert: never
+                Update: never
+                Relationships: []
             }
         }
         Functions: {
             [_ in never]: never
         }
         Enums: {
+            [_ in never]: never
+        }
+        CompositeTypes: {
             [_ in never]: never
         }
     }

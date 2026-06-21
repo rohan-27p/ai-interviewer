@@ -15,7 +15,7 @@ export async function GET(req: Request) {
 
         const { searchParams } = new URL(req.url);
         const sessionId = searchParams.get('sessionId');
-        const status = searchParams.get('status'); // 'active', 'pending', 'completed', or null for all
+        const status = searchParams.get('status') as 'active' | 'pending' | 'completed' | null;
 
         if (!sessionId) {
             return NextResponse.json({ error: 'Session ID required' }, { status: 400 });
