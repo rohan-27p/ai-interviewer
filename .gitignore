@@ -30,8 +30,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env & secrets (never commit)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -40,4 +41,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# local scratch / temp
 /tmp
+
+# private docs & notes (local only — not for the public repo)
+/docs/
+*.local.md
+NOTES.md
+PRIVATE.md
