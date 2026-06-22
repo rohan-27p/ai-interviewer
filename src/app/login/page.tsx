@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Mic, Loader2, Mail, Lock, Chrome } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { getAuthErrorMessage, isEmailNotConfirmed } from '@/lib/auth/errors';
+import { validateEmail, validatePassword } from '@/lib/auth/validation';
 
 export default function LoginPage() {
     return (
@@ -22,31 +24,50 @@ function LoginForm() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const redirectTo = searchParams.get('redirect') || '/dashboard';
+    const passwordResetSuccess = searchParams.get('reset') === 'success';
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
 
     const supabase = createClient();
 
     const handleEmailLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+
+        const emailError = validateEmail(email);
+        const passwordError = validatePassword(password);
+        const nextFieldErrors: { email?: string; password?: string } = {};
+
+        if (emailError) nextFieldErrors.email = emailError;
+        if (passwordError) nextFieldErrors.password = passwordError;
+
+        setFieldErrors(nextFieldErrors);
+        if (emailError || passwordError) return;
+
         setLoading(true);
 
         try {
-            const { data, error } = await supabase.auth.signInWithPassword({
-                email,
+            const { error: signInError } = await supabase.auth.signInWithPassword({
+                email: email.trim(),
                 password,
             });
 
-            if (error) throw error;
+            if (signInError) {
+                if (isEmailNotConfirmed(signInError)) {
+                    router.push(`/verify-email?email=${encodeURIComponent(email.trim())}`);
+                    return;
+                }
+                throw signInError;
+            }
 
-            // Successful login
             router.push(redirectTo);
+            router.refresh();
         } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : 'Failed to sign in');
+            setError(getAuthErrorMessage(err, 'Failed to sign in. Please try again.'));
         } finally {
             setLoading(false);
         }
@@ -57,7 +78,7 @@ function LoginForm() {
         setLoading(true);
 
         try {
-            const { data, error } = await supabase.auth.signInWithOAuth({
+            const { error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
                     redirectTo: `${window.location.origin}/auth/callback?redirect=${redirectTo}`,
@@ -66,7 +87,7 @@ function LoginForm() {
 
             if (error) throw error;
         } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : 'Failed to sign in with Google');
+            setError(getAuthErrorMessage(err, 'Failed to sign in with Google'));
             setLoading(false);
         }
     };
@@ -96,7 +117,13 @@ function LoginForm() {
                         <p className="text-[#a0a0a5]">Sign in to continue your practice</p>
                     </div>
 
-                    {/* Error Message */}
+                    {/* Error / success messages */}
+                    {passwordResetSuccess && (
+                        <div className="mb-6 p-4 bg-green-500/10 border border-green-500/20 rounded-lg text-green-400 text-sm">
+                            Your password has been updated. Sign in with your new password.
+                        </div>
+                    )}
+
                     {error && (
                         <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
                             {error}
@@ -142,31 +169,59 @@ function LoginForm() {
                                     id="email"
                                     type="email"
                                     value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
+                                    onChange={(e) => {
+                                        setEmail(e.target.value);
+                                        setFieldErrors((prev) => ({ ...prev, email: undefined }));
+                                    }}
                                     required
                                     placeholder="you@example.com"
-                                    className="w-full pl-11 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-[#6b6b70] focus:outline-none focus:border-orange-500/50 focus:ring-2 focus:ring-orange-500/20 transition-all"
+                                    className={`w-full pl-11 pr-4 py-3 bg-white/5 border rounded-xl text-white placeholder-[#6b6b70] focus:outline-none focus:ring-2 transition-all ${
+                                        fieldErrors.email
+                                            ? 'border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20'
+                                            : 'border-white/10 focus:border-orange-500/50 focus:ring-orange-500/20'
+                                    }`}
                                 />
                             </div>
+                            {fieldErrors.email && (
+                                <p className="mt-2 text-sm text-red-400">{fieldErrors.email}</p>
+                            )}
                         </div>
 
                         {/* Password Input */}
                         <div>
-                            <label htmlFor="password" className="block text-sm font-medium mb-2 text-[#a0a0a5]">
-                                Password
-                            </label>
+                            <div className="flex items-center justify-between mb-2">
+                                <label htmlFor="password" className="block text-sm font-medium text-[#a0a0a5]">
+                                    Password
+                                </label>
+                                <Link
+                                    href="/forgot-password"
+                                    className="text-sm text-orange-400 hover:text-orange-300 transition-colors"
+                                >
+                                    Forgot password?
+                                </Link>
+                            </div>
                             <div className="relative">
                                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#6b6b70]" />
                                 <input
                                     id="password"
                                     type="password"
                                     value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
+                                    onChange={(e) => {
+                                        setPassword(e.target.value);
+                                        setFieldErrors((prev) => ({ ...prev, password: undefined }));
+                                    }}
                                     required
                                     placeholder="••••••••"
-                                    className="w-full pl-11 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-[#6b6b70] focus:outline-none focus:border-orange-500/50 focus:ring-2 focus:ring-orange-500/20 transition-all"
+                                    className={`w-full pl-11 pr-4 py-3 bg-white/5 border rounded-xl text-white placeholder-[#6b6b70] focus:outline-none focus:ring-2 transition-all ${
+                                        fieldErrors.password
+                                            ? 'border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20'
+                                            : 'border-white/10 focus:border-orange-500/50 focus:ring-orange-500/20'
+                                    }`}
                                 />
                             </div>
+                            {fieldErrors.password && (
+                                <p className="mt-2 text-sm text-red-400">{fieldErrors.password}</p>
+                            )}
                         </div>
 
                         {/* Submit Button */}
