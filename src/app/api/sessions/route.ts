@@ -1,6 +1,11 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import type { Database } from '@/lib/supabase/database.types';
+import { after } from 'next/server';
+import type { Database, Json } from '@/lib/supabase/database.types';
+import { generateQuestionBatch } from '@/app/api/generate-question-batch/route';
+import { generateIntro } from '@/lib/ai/intro';
+import { Question } from '@/lib/types';
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 
 interface GeneratedQuestionPayload {
     title: string;
@@ -13,28 +18,98 @@ interface GeneratedQuestionPayload {
 }
 
 type SessionUpdate = Database['public']['Tables']['interview_sessions']['Update'];
+type QuestionInsert = Database['public']['Tables']['interview_questions']['Insert'];
 
-// Create a new interview session
+function normalizeDifficulty(value: string): 'Easy' | 'Medium' | 'Hard' {
+    const lower = value.toLowerCase();
+    if (lower === 'easy') return 'Easy';
+    if (lower === 'hard') return 'Hard';
+    return 'Medium';
+}
+
+export const maxDuration = 120;
+
+async function persistQuestionsForSession(
+    supabase: Awaited<ReturnType<typeof createClient>>,
+    sessionId: string,
+    interview_type: string,
+    difficulty: string,
+    topics: string[],
+    num_questions: number,
+    voice_id: string
+) {
+    try {
+        const questions = await generateQuestionBatch({
+            interviewType: interview_type,
+            difficulty,
+            topics,
+            count: num_questions,
+        });
+
+        const questionInserts: QuestionInsert[] = questions.map((q: GeneratedQuestionPayload, index: number) => ({
+            session_id: sessionId,
+            question_title: q.title,
+            question_description: q.description,
+            question_difficulty: normalizeDifficulty(q.difficulty),
+            question_type: q.type || interview_type,
+            constraints: q.constraints,
+            examples: q.examples as Json | undefined,
+            followup_guidelines: q.followup_guidelines,
+            question_order: index + 1,
+            status: index === 0 ? 'active' : 'pending',
+        }));
+
+        const { error: insertError } = await supabase.from('interview_questions').insert(questionInserts);
+
+        if (insertError) {
+            console.error('Error inserting questions:', insertError);
+            return;
+        }
+
+        const firstQuestion: Question = {
+            title: questions[0].title,
+            description: questions[0].description,
+            difficulty: normalizeDifficulty(questions[0].difficulty),
+            constraints: questions[0].constraints || [],
+            examples: (questions[0].examples as unknown as Question['examples']) ?? [],
+        };
+
+        const intro = await generateIntro(firstQuestion, interview_type, true, voice_id);
+
+        await supabase
+            .from('interview_sessions')
+            .update({
+                messages: [{ role: 'assistant', content: intro.introText }],
+            })
+            .eq('id', sessionId);
+    } catch (error) {
+        console.error('Background question generation error:', error);
+    }
+}
+
 export async function POST(req: Request) {
     try {
         const supabase = await createClient();
-
-        // Get authenticated user
         const { data: { user }, error: authError } = await supabase.auth.getUser();
 
         if (authError || !user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        const rate = checkRateLimit(`sessions:${user.id}`, 10, 60_000);
+        if (!rate.allowed) {
+            return rateLimitResponse(rate.retryAfterMs ?? 60_000);
+        }
+
         const body = await req.json();
         const { interview_type, difficulty, topics, num_questions, voice_id } = body;
 
-        // Validate input
         if (!interview_type || !difficulty || !topics || !num_questions) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
-        // Create new session
+        const resolvedVoiceId = voice_id || 'en-US-matthew';
+
         const { data: session, error } = await supabase
             .from('interview_sessions')
             .insert({
@@ -43,7 +118,7 @@ export async function POST(req: Request) {
                 difficulty,
                 topics,
                 num_questions,
-                voice_id: voice_id || 'en-US-matthew', // Default to US accent
+                voice_id: resolvedVoiceId,
                 status: 'active',
                 messages: [],
                 current_question_index: 0,
@@ -56,76 +131,23 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Failed to create session' }, { status: 500 });
         }
 
-        console.log(`Session created: ${session.id}. Generating ${num_questions} questions...`);
+        after(() =>
+            persistQuestionsForSession(
+                supabase,
+                session.id,
+                interview_type,
+                difficulty,
+                topics,
+                num_questions,
+                resolvedVoiceId
+            )
+        );
 
-        // ==================================================================
-        // PLANNED ARCHITECTURE: Generate ALL questions upfront
-        // ==================================================================
-
-        try {
-            // Call batch generation API
-            const questionResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:1337'}/api/generate-question-batch`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Cookie': req.headers.get('cookie') || '', // Pass auth cookies
-                },
-                body: JSON.stringify({
-                    interviewType: interview_type,
-                    difficulty,
-                    topics,
-                    count: num_questions
-                })
-            });
-
-            if (!questionResponse.ok) {
-                throw new Error('Failed to generate questions');
-            }
-
-            const { questions } = await questionResponse.json();
-
-            console.log(`Generated ${questions.length} questions:`);
-            questions.forEach((q: GeneratedQuestionPayload, i: number) => console.log(`  ${i + 1}. ${q.title}`));
-
-            // Store each question in interview_questions table
-            const questionInserts = questions.map((q: GeneratedQuestionPayload, index: number) => ({
-                session_id: session.id,
-                question_title: q.title,
-                question_description: q.description,
-                question_difficulty: q.difficulty,
-                question_type: q.type || interview_type,
-                constraints: q.constraints,
-                examples: q.examples,
-                followup_guidelines: q.followup_guidelines,
-                question_order: index + 1,
-                status: index === 0 ? 'active' : 'pending', // First question is active
-            }));
-
-            const { data: insertedQuestions, error: insertError } = await supabase
-                .from('interview_questions')
-                .insert(questionInserts)
-                .select();
-
-            if (insertError) {
-                console.error('❌ Error inserting questions:', insertError);
-            } else {
-                console.log(`✅ Successfully stored ${insertedQuestions?.length || 0} questions for session ${session.id}`);
-
-                // Verify by counting
-                const { count } = await supabase
-                    .from('interview_questions')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('session_id', session.id);
-                console.log(`✅ Verification: ${count} questions in DB for this session`);
-            }
-
-        } catch (questionError) {
-            console.error('Question generation error:', questionError);
-            // Don't fail the session creation - just log the error
-            // Questions can be generated on-the-fly as fallback
-        }
-
-        return NextResponse.json({ session });
+        return NextResponse.json({
+            session,
+            questionsReady: false,
+            message: 'Session created. Questions are being generated in the background.',
+        });
     } catch (error) {
         console.error('Session creation error:', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -169,7 +191,6 @@ export async function GET(req: Request) {
     }
 }
 
-// Update session (messages, status, etc.)
 export async function PATCH(req: Request) {
     try {
         const supabase = await createClient();

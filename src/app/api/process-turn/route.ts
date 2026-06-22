@@ -3,13 +3,17 @@ import { createClient } from '@deepgram/sdk';
 import { Groq } from 'groq-sdk';
 import { Message, Question } from '@/lib/types';
 import { createClient as createSupabaseClient } from '@/lib/supabase/server';
+import { generateIntro } from '@/lib/ai/intro';
+import { synthesizeSpeech } from '@/lib/ai/tts';
+import { getSttLanguage } from '@/lib/stt';
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
+import { logger } from '@/lib/logger';
+
+export const maxDuration = 120;
 
 // Initialize Clients
 const deepgram = createClient(process.env.DEEPGRAM_API_KEY ?? '');
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-
-//Constants
-const MURF_API_KEY = process.env.MURF_API_KEY;
 
 const NEXT_QUESTION_TRIGGERS = [
     'next question',
@@ -37,12 +41,18 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const formData = await req.formData();
-        const audioFile = formData.get('audio') as Blob;
-        const sessionId = formData.get('sessionId') as string;
+        const rate = checkRateLimit(`turn:${user.id}`, 40, 60_000);
+        if (!rate.allowed) {
+            return rateLimitResponse(rate.retryAfterMs ?? 60_000);
+        }
 
-        if (!audioFile) {
-            return NextResponse.json({ error: 'Missing audio' }, { status: 400 });
+        const formData = await req.formData();
+        const audioFile = formData.get('audio') as Blob | null;
+        const sessionId = formData.get('sessionId') as string;
+        const textResponse = (formData.get('textResponse') as string | null)?.trim() || '';
+
+        if (!textResponse && !audioFile) {
+            return NextResponse.json({ error: 'Missing audio or text response' }, { status: 400 });
         }
 
         //Fetch state from DATABASE, not client
@@ -88,6 +98,14 @@ export async function POST(req: Request) {
         const currentQuestionTitle = activeQuestion?.question_title || '';
         const currentQuestionIndex = activeQuestion ? activeQuestion.question_order - 1 : 0;
 
+        if (code) {
+            await supabase
+                .from('interview_questions')
+                .update({ user_code: code })
+                .eq('session_id', sessionId)
+                .eq('status', 'active');
+        }
+
         //Check if there are any questions left
         const { count } = await supabase
             .from('interview_questions')
@@ -107,30 +125,45 @@ export async function POST(req: Request) {
             }, { status: 200 }); // Changed to 200, not an error
         }
 
-        //STT:Deepgram SDK (Nova-2)
-        const sttStart = Date.now();
-        const audioBuffer = Buffer.from(await audioFile.arrayBuffer());
-
-        const { result, error } = await deepgram.listen.prerecorded.transcribeFile(
-            audioBuffer,
-            {
-                model: 'nova-2',
-                smart_format: true,
-                language: 'en-US',
-            }
-        );
-
-        if (error) {
-            console.error('Deepgram Error:', error);
-            throw new Error(`Deepgram STT failed: ${error.message}`);
-        }
-
-        const userTranscript = result?.results?.channels[0]?.alternatives[0]?.transcript;
-        const sttTime = Date.now() - sttStart;
-        console.log(`⏱️ STT: ${sttTime}ms`);
+        // STT: Deepgram (skip when text response provided)
+        let userTranscript = textResponse;
+        let sttTime = 0;
 
         if (!userTranscript) {
-            return NextResponse.json({ error: 'No speech detected' }, { status: 400 });
+            if (!audioFile) {
+                return NextResponse.json({ error: 'Missing audio or text response' }, { status: 400 });
+            }
+            const sttStart = Date.now();
+            const audioBuffer = Buffer.from(await audioFile.arrayBuffer());
+            const voiceId = session.voice_id || 'en-US-matthew';
+
+            const { result, error } = await deepgram.listen.prerecorded.transcribeFile(
+                audioBuffer,
+                {
+                    model: 'nova-2',
+                    smart_format: true,
+                    language: getSttLanguage(voiceId),
+                }
+            );
+
+            if (error) {
+                logger.error('deepgram_stt_failed', { sessionId, message: error.message });
+                return NextResponse.json({
+                    error: 'Speech recognition failed. Try typing your response instead.',
+                    allowTextFallback: true,
+                }, { status: 422 });
+            }
+
+            userTranscript = result?.results?.channels[0]?.alternatives[0]?.transcript || '';
+            sttTime = Date.now() - sttStart;
+            logger.info('stt_complete', { sessionId, ms: sttTime });
+        }
+
+        if (!userTranscript) {
+            return NextResponse.json({
+                error: 'No speech detected. Try speaking again or type your answer.',
+                allowTextFallback: true,
+            }, { status: 400 });
         }
 
         console.log('User said:', userTranscript);
@@ -225,16 +258,27 @@ REMEMBER: You are ONLY evaluating "${actualQuestionTitle}" with exactly ${maxFol
         ];
 
         const llmStart = Date.now();
-        const completion = await groq.chat.completions.create({
-            messages: messages as Message[],
-            model: 'llama-3.3-70b-versatile',
-            temperature: 0.6,
-            max_tokens: 150,
-        });
-        const llmTime = Date.now() - llmStart;
-        console.log(`⏱️ LLM: ${llmTime}ms`);
+        let aiReply = "I didn't catch that. Could you repeat that?";
+        let llmTime = 0;
 
-        const aiReply = completion.choices[0]?.message?.content || "I didn't catch that.";
+        try {
+            const completion = await groq.chat.completions.create({
+                messages: messages as Message[],
+                model: 'llama-3.3-70b-versatile',
+                temperature: 0.6,
+                max_tokens: 150,
+            });
+            llmTime = Date.now() - llmStart;
+            aiReply = completion.choices[0]?.message?.content || aiReply;
+        } catch (llmError) {
+            logger.error('llm_failed', { sessionId, error: String(llmError) });
+            return NextResponse.json({
+                error: 'AI is temporarily unavailable. Please try again in a moment.',
+                allowTextFallback: true,
+            }, { status: 503 });
+        }
+
+        console.log(`⏱️ LLM: ${llmTime}ms`);
         console.log('AI replied:', aiReply);
 
         // FIX: Parse status tag with OPTIONAL space (handles both [STATUS:COMPLETE] and [STATUS: COMPLETE])
@@ -322,48 +366,32 @@ REMEMBER: You are ONLY evaluating "${actualQuestionTitle}" with exactly ${maxFol
 
                 console.log('✅ Next question activated:', newQuestion.title);
 
-                // CRITICAL FIX: Generate intro for the NEW question
-                try {
-                    const introRes = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:1337'}/api/generate-intro`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            question: newQuestion,
-                            interviewType: session.interview_type,
-                            isFirstQuestion: false // Tell API this is NOT first question
-                        })
-                    });
+                const voiceId = session.voice_id || 'en-US-matthew';
+                const intro = await generateIntro(newQuestion, session.interview_type, false, voiceId);
 
-                    if (introRes.ok) {
-                        const { introText, audioBase64 } = await introRes.json();
-                        console.log(`Generated intro for new question`);
+                const earlyMessages = [
+                    ...conversationHistory,
+                    { role: 'user', content: userTranscript },
+                    { role: 'assistant', content: intro.introText },
+                ];
 
-                        const earlyMessages = [
-                            ...conversationHistory,
-                            { role: 'user', content: userTranscript },
-                            { role: 'assistant', content: introText },
-                        ];
+                await supabase
+                    .from('interview_sessions')
+                    .update({
+                        messages: earlyMessages,
+                        current_question_index: currentQuestionIndex + 1,
+                    })
+                    .eq('id', sessionId)
+                    .eq('user_id', user.id);
 
-                        await supabase
-                            .from('interview_sessions')
-                            .update({
-                                messages: earlyMessages,
-                                current_question_index: currentQuestionIndex + 1,
-                            })
-                            .eq('id', sessionId)
-                            .eq('user_id', user.id);
-
-                        return NextResponse.json({
-                            transcript: userTranscript,
-                            reply: introText,
-                            audioBase64,
-                            newQuestion,
-                            shouldEndInterview: false,
-                        });
-                    }
-                } catch (err) {
-                    console.error('Failed to generate intro:', err);
-                }
+                return NextResponse.json({
+                    transcript: userTranscript,
+                    reply: intro.introText,
+                    audioBase64: intro.audioBase64,
+                    newQuestion,
+                    shouldEndInterview: false,
+                    timing: { stt: sttTime, total: Date.now() - totalStart },
+                });
             } else {
                 console.log('No more questions in database');
             }
@@ -393,47 +421,19 @@ REMEMBER: You are ONLY evaluating "${actualQuestionTitle}" with exactly ${maxFol
             console.log('Signaling interview end.');
         }
 
-        //TTS: Murf AI(Falcon Model) GOAT!
         const ttsStart = Date.now();
-        const murfUrl = 'https://global.api.murf.ai/v1/speech/stream';
-
-        // Get voice from session or default to US
         const voiceId = session.voice_id || 'en-US-matthew';
-        // Extract locale from voice ID (e.g., 'en-US-matthew' -> 'en-US')
-        const locale = voiceId.split('-').slice(0, 2).join('-');
+        const audioBase64 = await synthesizeSpeech(cleanReply, voiceId);
+        const ttsTime = Date.now() - ttsStart;
 
-        const murfPayload = {
-            voiceId: voiceId,
-            text: cleanReply,
-            multiNativeLocale: locale,
-            model: 'FALCON',
-            format: 'MP3',
-            sampleRate: 24000,
-            channelType: 'MONO'
-        };
-
-        const murfResponse = await fetch(murfUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'api-key': MURF_API_KEY!
-            },
-            body: JSON.stringify(murfPayload)
-        });
-
-        if (!murfResponse.ok) {
-            const errText = await murfResponse.text();
-            console.error('Murf Falcon Error:', errText);
-            throw new Error(`Murf TTS failed: ${errText}`);
+        if (!audioBase64) {
+            logger.warn('tts_fallback_text_only', { sessionId });
+        } else {
+            logger.info('tts_complete', { sessionId, ms: ttsTime });
         }
 
-        const audioArrayBuffer = await murfResponse.arrayBuffer();
-        const audioBase64 = Buffer.from(audioArrayBuffer).toString('base64');
-        const ttsTime = Date.now() - ttsStart;
-        console.log(`⏱️ TTS: ${ttsTime}ms`);
-
         const totalTime = Date.now() - totalStart;
-        console.log(`⏱️ TOTAL TURN: ${totalTime}ms (STT: ${sttTime}ms, LLM: ${llmTime}ms, TTS: ${ttsTime}ms)`);
+        logger.info('turn_complete', { sessionId, ms: totalTime, stt: sttTime, llm: llmTime, tts: ttsTime });
 
         // Update session in database with new messages
         const updatedMessages = [

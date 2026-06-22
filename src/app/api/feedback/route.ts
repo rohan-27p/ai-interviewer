@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import { Groq } from 'groq-sdk';
 import { createClient } from '@/lib/supabase/server';
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+export const maxDuration = 120;
 
 export async function POST(req: Request) {
     try {
@@ -15,8 +18,29 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        const rate = checkRateLimit(`feedback:${user.id}`, 10, 60_000);
+        if (!rate.allowed) {
+            return rateLimitResponse(rate.retryAfterMs ?? 60_000);
+        }
+
         const body = await req.json();
-        const { messages, questions, sessionId } = body;
+        const { messages: clientMessages, questions, sessionId } = body;
+
+        let messages = clientMessages;
+
+        if (sessionId) {
+            const { data: sessionRow } = await supabase
+                .from('interview_sessions')
+                .select('messages')
+                .eq('id', sessionId)
+                .eq('user_id', user.id)
+                .single();
+
+            const dbMessages = (sessionRow?.messages as { role: string; content: string }[] | null) ?? [];
+            if (dbMessages.length > 0) {
+                messages = dbMessages;
+            }
+        }
 
         if (!messages || messages.length === 0) {
             return NextResponse.json({ error: 'No interview history provided' }, { status: 400 });

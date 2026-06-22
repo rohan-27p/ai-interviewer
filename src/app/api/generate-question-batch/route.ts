@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { Groq } from 'groq-sdk';
 import { createClient } from '@/lib/supabase/server';
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
@@ -285,7 +286,7 @@ function getFallbackQuestions(type: string, difficulty: string, count: number): 
     return selected.map(q => ({ ...q, difficulty, type }));
 }
 
-async function generateQuestionBatch(params: QuestionGenerationParams): Promise<GeneratedQuestion[]> {
+export async function generateQuestionBatch(params: QuestionGenerationParams): Promise<GeneratedQuestion[]> {
     const { interviewType, difficulty, topics, count } = params;
 
     // Build topic context
@@ -423,15 +424,21 @@ Return format:
     }
 }
 
+export const maxDuration = 120;
+
 export async function POST(req: Request) {
     try {
         const supabase = await createClient();
 
-        // Authenticate
         const { data: { user }, error: authError } = await supabase.auth.getUser();
 
         if (authError || !user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const rate = checkRateLimit(`batch:${user.id}`, 10, 60_000);
+        if (!rate.allowed) {
+            return rateLimitResponse(rate.retryAfterMs ?? 60_000);
         }
 
         const body = await req.json();
