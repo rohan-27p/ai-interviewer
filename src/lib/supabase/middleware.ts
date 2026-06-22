@@ -39,6 +39,10 @@ export async function updateSession(request: NextRequest) {
     // Protected routes - redirect to login if not authenticated
     const protectedPaths = ['/interview', '/feedback', '/dashboard', '/setup']
     const isProtectedPath = protectedPaths.some(path => request.nextUrl.pathname.startsWith(path))
+    const isVerifyEmailPath = request.nextUrl.pathname.startsWith('/verify-email')
+    const isForgotPasswordPath = request.nextUrl.pathname.startsWith('/forgot-password')
+    const isResetPasswordPath = request.nextUrl.pathname.startsWith('/reset-password')
+    const isPasswordRecoveryPath = isForgotPasswordPath || isResetPasswordPath
 
     if (isProtectedPath && !user) {
         // Redirect to login page
@@ -48,11 +52,32 @@ export async function updateSession(request: NextRequest) {
         return NextResponse.redirect(url)
     }
 
-    // Auth routes - redirect to dashboard if already authenticated
+    if (isProtectedPath && user && !user.email_confirmed_at) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/verify-email'
+        if (user.email) {
+            url.searchParams.set('email', user.email)
+        }
+        return NextResponse.redirect(url)
+    }
+
+    // Auth routes - redirect to dashboard if already authenticated and verified
     const authPaths = ['/login', '/signup']
     const isAuthPath = authPaths.some(path => request.nextUrl.pathname.startsWith(path))
 
-    if (isAuthPath && user) {
+    if (isAuthPath && user?.email_confirmed_at) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/dashboard'
+        return NextResponse.redirect(url)
+    }
+
+    if (isVerifyEmailPath && user?.email_confirmed_at) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/dashboard'
+        return NextResponse.redirect(url)
+    }
+
+    if (isPasswordRecoveryPath && user?.email_confirmed_at) {
         const url = request.nextUrl.clone()
         url.pathname = '/dashboard'
         return NextResponse.redirect(url)

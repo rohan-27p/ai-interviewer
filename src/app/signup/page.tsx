@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Mic, Loader2, Mail, Lock, User, Chrome } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { getAuthErrorMessage } from '@/lib/auth/errors';
+import { validateEmail, validatePassword } from '@/lib/auth/validation';
 
 export default function SignupPage() {
     const router = useRouter();
@@ -15,6 +17,12 @@ export default function SignupPage() {
     const [confirmPassword, setConfirmPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [fieldErrors, setFieldErrors] = useState<{
+        fullName?: string;
+        email?: string;
+        password?: string;
+        confirmPassword?: string;
+    }>({});
 
     const supabase = createClient();
 
@@ -22,36 +30,59 @@ export default function SignupPage() {
         e.preventDefault();
         setError('');
 
-        // Validation
-        if (password !== confirmPassword) {
-            setError('Passwords do not match');
-            return;
+        const nextFieldErrors: {
+            fullName?: string;
+            email?: string;
+            password?: string;
+            confirmPassword?: string;
+        } = {};
+
+        if (!fullName.trim()) {
+            nextFieldErrors.fullName = 'Full name is required.';
         }
 
-        if (password.length < 6) {
-            setError('Password must be at least 6 characters');
-            return;
+        const emailError = validateEmail(email);
+        if (emailError) nextFieldErrors.email = emailError;
+
+        const passwordError = validatePassword(password);
+        if (passwordError) nextFieldErrors.password = passwordError;
+
+        if (password !== confirmPassword) {
+            nextFieldErrors.confirmPassword = 'Passwords do not match.';
         }
+
+        setFieldErrors(nextFieldErrors);
+        if (Object.keys(nextFieldErrors).length > 0) return;
 
         setLoading(true);
 
         try {
-            const { data, error } = await supabase.auth.signUp({
-                email,
+            const { data, error: signUpError } = await supabase.auth.signUp({
+                email: email.trim(),
                 password,
                 options: {
                     data: {
-                        full_name: fullName,
+                        full_name: fullName.trim(),
                     },
                 },
             });
 
-            if (error) throw error;
+            if (signUpError) throw signUpError;
 
-            // Successful signup
+            if (data.user?.identities?.length === 0) {
+                setError('An account with this email already exists. Please sign in instead.');
+                return;
+            }
+
+            if (data.user && !data.session) {
+                router.push(`/verify-email?email=${encodeURIComponent(email.trim())}`);
+                return;
+            }
+
             router.push('/dashboard');
+            router.refresh();
         } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : 'Failed to create account');
+            setError(getAuthErrorMessage(err, 'Failed to create account. Please try again.'));
         } finally {
             setLoading(false);
         }
@@ -62,7 +93,7 @@ export default function SignupPage() {
         setLoading(true);
 
         try {
-            const { data, error } = await supabase.auth.signInWithOAuth({
+            const { error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
                     redirectTo: `${window.location.origin}/auth/callback?redirect=/dashboard`,
@@ -71,7 +102,7 @@ export default function SignupPage() {
 
             if (error) throw error;
         } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : 'Failed to sign up with Google');
+            setError(getAuthErrorMessage(err, 'Failed to sign up with Google'));
             setLoading(false);
         }
     };
@@ -147,12 +178,22 @@ export default function SignupPage() {
                                     id="fullName"
                                     type="text"
                                     value={fullName}
-                                    onChange={(e) => setFullName(e.target.value)}
+                                    onChange={(e) => {
+                                        setFullName(e.target.value);
+                                        setFieldErrors((prev) => ({ ...prev, fullName: undefined }));
+                                    }}
                                     required
                                     placeholder="John Doe"
-                                    className="w-full pl-11 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-[#6b6b70] focus:outline-none focus:border-orange-500/50 focus:ring-2 focus:ring-orange-500/20 transition-all"
+                                    className={`w-full pl-11 pr-4 py-3 bg-white/5 border rounded-xl text-white placeholder-[#6b6b70] focus:outline-none focus:ring-2 transition-all ${
+                                        fieldErrors.fullName
+                                            ? 'border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20'
+                                            : 'border-white/10 focus:border-orange-500/50 focus:ring-orange-500/20'
+                                    }`}
                                 />
                             </div>
+                            {fieldErrors.fullName && (
+                                <p className="mt-2 text-sm text-red-400">{fieldErrors.fullName}</p>
+                            )}
                         </div>
 
                         {/* Email Input */}
@@ -166,12 +207,22 @@ export default function SignupPage() {
                                     id="email"
                                     type="email"
                                     value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
+                                    onChange={(e) => {
+                                        setEmail(e.target.value);
+                                        setFieldErrors((prev) => ({ ...prev, email: undefined }));
+                                    }}
                                     required
                                     placeholder="you@example.com"
-                                    className="w-full pl-11 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-[#6b6b70] focus:outline-none focus:border-orange-500/50 focus:ring-2 focus:ring-orange-500/20 transition-all"
+                                    className={`w-full pl-11 pr-4 py-3 bg-white/5 border rounded-xl text-white placeholder-[#6b6b70] focus:outline-none focus:ring-2 transition-all ${
+                                        fieldErrors.email
+                                            ? 'border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20'
+                                            : 'border-white/10 focus:border-orange-500/50 focus:ring-orange-500/20'
+                                    }`}
                                 />
                             </div>
+                            {fieldErrors.email && (
+                                <p className="mt-2 text-sm text-red-400">{fieldErrors.email}</p>
+                            )}
                         </div>
 
                         {/* Password Input */}
@@ -185,12 +236,22 @@ export default function SignupPage() {
                                     id="password"
                                     type="password"
                                     value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
+                                    onChange={(e) => {
+                                        setPassword(e.target.value);
+                                        setFieldErrors((prev) => ({ ...prev, password: undefined }));
+                                    }}
                                     required
                                     placeholder="At least 6 characters"
-                                    className="w-full pl-11 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-[#6b6b70] focus:outline-none focus:border-orange-500/50 focus:ring-2 focus:ring-orange-500/20 transition-all"
+                                    className={`w-full pl-11 pr-4 py-3 bg-white/5 border rounded-xl text-white placeholder-[#6b6b70] focus:outline-none focus:ring-2 transition-all ${
+                                        fieldErrors.password
+                                            ? 'border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20'
+                                            : 'border-white/10 focus:border-orange-500/50 focus:ring-orange-500/20'
+                                    }`}
                                 />
                             </div>
+                            {fieldErrors.password && (
+                                <p className="mt-2 text-sm text-red-400">{fieldErrors.password}</p>
+                            )}
                         </div>
 
                         {/* Confirm Password */}
@@ -204,12 +265,22 @@ export default function SignupPage() {
                                     id="confirmPassword"
                                     type="password"
                                     value={confirmPassword}
-                                    onChange={(e) => setConfirmPassword(e.target.value)}
+                                    onChange={(e) => {
+                                        setConfirmPassword(e.target.value);
+                                        setFieldErrors((prev) => ({ ...prev, confirmPassword: undefined }));
+                                    }}
                                     required
                                     placeholder="Re-enter your password"
-                                    className="w-full pl-11 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-[#6b6b70] focus:outline-none focus:border-orange-500/50 focus:ring-2 focus:ring-orange-500/20 transition-all"
+                                    className={`w-full pl-11 pr-4 py-3 bg-white/5 border rounded-xl text-white placeholder-[#6b6b70] focus:outline-none focus:ring-2 transition-all ${
+                                        fieldErrors.confirmPassword
+                                            ? 'border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20'
+                                            : 'border-white/10 focus:border-orange-500/50 focus:ring-orange-500/20'
+                                    }`}
                                 />
                             </div>
+                            {fieldErrors.confirmPassword && (
+                                <p className="mt-2 text-sm text-red-400">{fieldErrors.confirmPassword}</p>
+                            )}
                         </div>
 
                         {/* Submit Button */}
