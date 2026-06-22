@@ -1,20 +1,24 @@
-import type { EmailOtpType, SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type AuthOtpResendType = 'signup' | 'recovery';
-
-const RESEND_TYPE_MAP: Record<AuthOtpResendType, EmailOtpType> = {
-    signup: 'signup',
-    recovery: 'recovery',
-};
 
 export async function resendAuthOtp(
     supabase: SupabaseClient,
     email: string,
-    type: AuthOtpResendType
+    type: AuthOtpResendType,
+    redirectTo?: string
 ) {
+    const trimmedEmail = email.trim();
+
+    if (type === 'recovery') {
+        return supabase.auth.resetPasswordForEmail(trimmedEmail, {
+            redirectTo,
+        });
+    }
+
     return supabase.auth.resend({
-        type: RESEND_TYPE_MAP[type],
-        email: email.trim(),
+        type: 'signup',
+        email: trimmedEmail,
     });
 }
 

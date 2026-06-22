@@ -117,7 +117,12 @@ function ResetPasswordForm() {
         setResendLoading(true);
 
         try {
-            const { error: resendError } = await resendAuthOtp(supabase, email, 'recovery');
+            const { error: resendError } = await resendAuthOtp(
+                supabase,
+                email,
+                'recovery',
+                `${window.location.origin}/reset-password`
+            );
 
             if (resendError) throw resendError;
 
