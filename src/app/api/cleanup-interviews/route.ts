@@ -1,19 +1,25 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
-// Auto-complete interviews that have been active for more than 1 hour
+// Auto-complete interviews that have been inactive for more than 1 hour
 export async function POST(_req: Request) {
     try {
         const supabase = await createClient();
 
-        // Get all active sessions that are older than 1 hour
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+        if (authError || !user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        // Get all active sessions with no activity for more than 1 hour
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
         const { data: oldSessions, error } = await supabase
             .from('interview_sessions')
             .select('id')
             .eq('status', 'active')
-            .lt('created_at', oneHourAgo);
+            .lt('updated_at', oneHourAgo);
 
         if (error) {
             console.error('Error fetching old sessions:', error);

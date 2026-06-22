@@ -11,33 +11,29 @@ export async function GET(request: Request, { params }: RouteParams) {
         const { sessionId } = await params;
         const supabase = await createClient();
 
-        // Authenticate user
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (authError || !user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        // Fetch feedback from DB
         const { data: feedback, error } = await supabase
             .from('feedback_reports')
             .select('*')
             .eq('session_id', sessionId)
+            .eq('user_id', user.id)
             .single();
 
         if (error || !feedback) {
             return NextResponse.json({ error: 'Feedback not found' }, { status: 404 });
         }
 
-        // Also fetch session details for context
         const { data: session } = await supabase
             .from('interview_sessions')
-            .select('interview_type, difficulty, question_count, created_at')
+            .select('interview_type, difficulty, num_questions, created_at')
             .eq('id', sessionId)
+            .eq('user_id', user.id)
             .single();
 
-        // Map database columns to frontend format
-        // Database columns: overall_score, overall_verdict, summary, strengths, areas_for_improvement
-        // technical_skills_score, technical_skills_feedback, problem_solving_score, etc.
         return NextResponse.json({
             feedback: {
                 overallScore: feedback.overall_score ?? 0,
@@ -47,20 +43,20 @@ export async function GET(request: Request, { params }: RouteParams) {
                 areasForImprovement: feedback.areas_for_improvement ?? [],
                 technicalSkills: {
                     score: feedback.technical_skills_score ?? 0,
-                    feedback: feedback.technical_skills_feedback ?? ''
+                    feedback: feedback.technical_skills_feedback ?? '',
                 },
                 problemSolving: {
                     score: feedback.problem_solving_score ?? 0,
-                    feedback: feedback.problem_solving_feedback ?? ''
+                    feedback: feedback.problem_solving_feedback ?? '',
                 },
                 communication: {
                     score: feedback.communication_score ?? 0,
-                    feedback: feedback.communication_feedback ?? ''
+                    feedback: feedback.communication_feedback ?? '',
                 },
-                recommendations: feedback.recommendations ?? []
+                recommendations: feedback.recommendations ?? [],
             },
             session: session || null,
-            createdAt: feedback.created_at
+            createdAt: feedback.created_at,
         });
     } catch (error) {
         console.error('Error fetching feedback:', error);

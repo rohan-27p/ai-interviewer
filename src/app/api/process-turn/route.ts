@@ -335,16 +335,30 @@ REMEMBER: You are ONLY evaluating "${actualQuestionTitle}" with exactly ${maxFol
                     });
 
                     if (introRes.ok) {
-                        // FIX: Field names are introText and audioBase64, NOT intro and audio!
                         const { introText, audioBase64 } = await introRes.json();
                         console.log(`Generated intro for new question`);
 
-                        // Early return with new question intro
+                        const earlyMessages = [
+                            ...conversationHistory,
+                            { role: 'user', content: userTranscript },
+                            { role: 'assistant', content: introText },
+                        ];
+
+                        await supabase
+                            .from('interview_sessions')
+                            .update({
+                                messages: earlyMessages,
+                                current_question_index: currentQuestionIndex + 1,
+                            })
+                            .eq('id', sessionId)
+                            .eq('user_id', user.id);
+
                         return NextResponse.json({
-                            reply: introText,  // Use 'reply' to match frontend expectation
-                            audioBase64,       // Use correct field name
+                            transcript: userTranscript,
+                            reply: introText,
+                            audioBase64,
                             newQuestion,
-                            shouldEndInterview: false
+                            shouldEndInterview: false,
                         });
                     }
                 } catch (err) {

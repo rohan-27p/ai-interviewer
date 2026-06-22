@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { Groq } from 'groq-sdk';
 import { Question } from '@/lib/types';
+import { createClient } from '@/lib/supabase/server';
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const MURF_API_KEY = process.env.MURF_API_KEY;
@@ -69,6 +70,13 @@ export async function POST(req: Request) {
     const totalStart = Date.now();
 
     try {
+        const supabase = await createClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+        if (authError || !user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const body = await req.json();
         const { question, interviewType = 'dsa', isFirstQuestion = true, voiceId = 'en-US-matthew' } = body as {
             question: Question;
