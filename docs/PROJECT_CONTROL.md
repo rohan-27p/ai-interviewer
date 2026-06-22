@@ -206,20 +206,20 @@ src/
 
 ### Critical
 
-- [ ] **Message desync:** Question advance early-return in `process-turn` skips DB message save; missing `transcript` in response
-- [ ] **Unauthenticated routes:** `generate-intro`, `generate-question`, `cleanup-interviews`
-- [ ] **Feedback IDOR:** `sessions/[sessionId]/feedback` doesn't filter by `user_id` (mitigated only if RLS is strict)
-- [ ] **Open redirect:** `auth/callback` accepts arbitrary `redirect` param
+- [x] **Message desync:** Question advance early-return in `process-turn` skips DB message save; missing `transcript` in response
+- [x] **Unauthenticated routes:** `generate-intro`, `generate-question`, `cleanup-interviews`
+- [x] **Feedback IDOR:** `sessions/[sessionId]/feedback` doesn't filter by `user_id` (mitigated only if RLS is strict)
+- [x] **Open redirect:** `auth/callback` accepts arbitrary `redirect` param
 - [ ] **Fake autosave:** UI shows "Auto-saved" but `user_code` never persisted
 
 ### Medium
 
-- [ ] Cleanup uses `created_at` not `last_activity_at`
+- [x] Cleanup uses `created_at` not `last_activity_at`
 - [ ] `database.types.ts` missing columns used in code (`voice_id`, `status`, `followup_count`, etc.)
 - [ ] Stale React closure in `processAudioTurn` (`messages` state)
 - [ ] Dockerfile uses pnpm but repo uses npm — broken for deploy
 - [ ] Legacy files: `interview/page.tsx`, `page.tsx.bak`, unused `lib/tts.ts`
-- [ ] Feedback route selects `question_count` but column is `num_questions`
+- [x] Feedback route selects `question_count` but column is `num_questions`
 
 ### Low
 
