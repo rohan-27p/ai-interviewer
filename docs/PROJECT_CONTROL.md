@@ -74,6 +74,27 @@ NEXT_PUBLIC_SITE_URL=http://localhost:1337
 - Site URL: `http://localhost:1337`
 - Redirect: `http://localhost:1337/auth/callback`
 
+**Supabase Auth redirect URLs (production — Vercel):**
+
+Configure in [Supabase Dashboard](https://supabase.com/dashboard) → **Authentication** → **URL Configuration**:
+
+| Setting | Value |
+|---------|--------|
+| **Site URL** | `https://ai-interviewer-pi-kohl.vercel.app` |
+| **Redirect URLs** | `https://ai-interviewer-pi-kohl.vercel.app/auth/callback` |
+| | `https://ai-interviewer-pi-kohl.vercel.app/**` |
+
+Email confirmation and password-reset use **OTP codes** (`{{ .Token }}` in templates). OAuth (Google) uses **Redirect URLs**.
+
+**Email templates (OTP):** Copy HTML from `supabase/templates/` into Supabase Dashboard → **Authentication** → **Email Templates**:
+- **Confirm signup** → `confirmation.html`, subject: `Confirm your InterviewAI account`
+- **Reset password** → `recovery.html`, subject: `{{ .Token }} is your InterviewAI password reset code`
+- **Magic link** → `magic_link.html` (optional), subject: `{{ .Token }} is your InterviewAI sign-in code`
+
+For local Supabase CLI, `supabase/config.toml` points to the same template files.
+
+**Vercel env file:** copy from `.env.production` (local, gitignored) or `docs/env.production.example`. Set all vars for the **Production** environment, then redeploy.
+
 ---
 
 ## 3. Fresh Supabase setup checklist

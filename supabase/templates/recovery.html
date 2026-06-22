@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reset your password</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #0a0a0b; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #0a0a0b; padding: 40px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 480px; background-color: #141416; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px;">
+          <tr>
+            <td style="padding: 32px 28px;">
+              <table role="presentation" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td style="width: 40px; height: 40px; background: linear-gradient(135deg, #f97316, #ea580c); border-radius: 12px; text-align: center; vertical-align: middle;">
+                    <span style="color: #ffffff; font-size: 18px; font-weight: 700;">AI</span>
+                  </td>
+                  <td style="padding-left: 12px; color: #ffffff; font-size: 20px; font-weight: 700;">InterviewAI</td>
+                </tr>
+              </table>
+
+              <h1 style="margin: 28px 0 12px; color: #ffffff; font-size: 24px; font-weight: 700; line-height: 1.3;">
+                Reset your password
+              </h1>
+              <p style="margin: 0 0 24px; color: #a0a0a5; font-size: 15px; line-height: 1.6;">
+                We received a password reset request for
+                <strong style="color: #ffffff;">{{ .Email }}</strong>.
+                Enter this code in the app to choose a new password.
+              </p>
+
+              <div style="background-color: rgba(249, 115, 22, 0.1); border: 1px solid rgba(249, 115, 22, 0.25); border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 24px;">
+                <p style="margin: 0 0 8px; color: #a0a0a5; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em;">
+                  Reset code
+                </p>
+                <p style="margin: 0; color: #f97316; font-size: 32px; font-weight: 700; letter-spacing: 0.35em; font-family: 'Courier New', Courier, monospace;">
+                  {{ .Token }}
+                </p>
+              </div>
+
+              <p style="margin: 0 0 8px; color: #a0a0a5; font-size: 14px; line-height: 1.6;">
+                If you did not request a password reset, you can safely ignore this email. Your password will not change.
+              </p>
+              <p style="margin: 0; color: #6b6b70; font-size: 12px; line-height: 1.5;">
+                InterviewAI &mdash; {{ .SiteURL }}
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

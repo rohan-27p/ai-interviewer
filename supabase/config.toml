@@ -1,0 +1,15 @@
+# Supabase local development configuration.
+# Email templates: copy HTML from supabase/templates/ into the hosted dashboard
+# (Authentication → Email Templates) or use these paths for local Supabase CLI.
+
+[auth.email.template.confirmation]
+subject = "Confirm your InterviewAI account"
+content_path = "./templates/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "{{ .Token }} is your InterviewAI password reset code"
+content_path = "./templates/recovery.html"
+
+[auth.email.template.magic_link]
+subject = "{{ .Token }} is your InterviewAI sign-in code"
+content_path = "./templates/magic_link.html"
