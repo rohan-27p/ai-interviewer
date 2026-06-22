@@ -3,8 +3,9 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Mic, Trophy, Target, Clock, ArrowRight, LogOut, BookOpen, TrendingUp, Star } from 'lucide-react';
+import { Trophy, Target, Clock, ArrowRight, TrendingUp, Star } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { AppHeader } from '@/components/AppHeader';
 
 interface UserProfile {
     id: string;
@@ -51,13 +52,6 @@ export default function DashboardPage() {
 
     const loadDashboardData = async () => {
         try {
-            // Auto-cleanup stale sessions (>1 hour) before loading stats
-            try {
-                await fetch('/api/cleanup-interviews', { method: 'POST' });
-            } catch (e) {
-                console.warn('Cleanup skipped:', e);
-            }
-
             const { data: { user } } = await supabase.auth.getUser();
 
             if (!user) {
@@ -129,11 +123,6 @@ export default function DashboardPage() {
         }
     };
 
-    const handleLogout = async () => {
-        await supabase.auth.signOut();
-        router.push('/');
-    };
-
     if (loading) {
         return (
             <div className="min-h-screen bg-[#0a0a0b] text-white flex items-center justify-center">
@@ -150,24 +139,7 @@ export default function DashboardPage() {
                 <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
             </div>
 
-            {/* Header */}
-            <nav className="relative z-10 border-b border-white/10">
-                <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-                    <Link href="/" className="flex items-center gap-2">
-                        <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center">
-                            <Mic className="w-5 h-5 text-white" />
-                        </div>
-                        <span className="text-xl font-bold">InterviewAI</span>
-                    </Link>
-                    <button
-                        onClick={handleLogout}
-                        className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-all text-sm"
-                    >
-                        <LogOut className="w-4 h-4" />
-                        Logout
-                    </button>
-                </div>
-            </nav>
+            <AppHeader profileName={profile?.full_name} avatarUrl={profile?.avatar_url} />
 
             {/* Main Content */}
             <main className="relative z-10 max-w-7xl mx-auto px-6 py-12">
@@ -229,7 +201,7 @@ export default function DashboardPage() {
                 {/* Quick Actions */}
                 <div className="mb-12">
                     <h2 className="text-2xl font-bold mb-6">Quick Actions</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <Link
                             href="/setup"
                             className="group p-6 bg-gradient-to-r from-orange-500/10 to-orange-600/10 border border-orange-500/20 hover:border-orange-500/40 rounded-2xl transition-all"
@@ -254,6 +226,20 @@ export default function DashboardPage() {
                                         View Feedback
                                     </h3>
                                     <p className="text-sm text-[#a0a0a5]">Review your performance</p>
+                                </div>
+                                <ArrowRight className="w-6 h-6 text-purple-400 group-hover:translate-x-1 transition-transform" />
+                            </div>
+                        </Link>
+                        <Link
+                            href="/profile"
+                            className="group p-6 bg-white/5 border border-white/10 hover:border-purple-500/30 rounded-2xl transition-all"
+                        >
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-lg font-semibold mb-1 group-hover:text-purple-400 transition-colors">
+                                        Your Profile
+                                    </h3>
+                                    <p className="text-sm text-[#a0a0a5]">Stats, achievements, and settings</p>
                                 </div>
                                 <ArrowRight className="w-6 h-6 text-purple-400 group-hover:translate-x-1 transition-transform" />
                             </div>
