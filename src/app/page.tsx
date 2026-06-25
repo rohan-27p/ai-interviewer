@@ -2,100 +2,84 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { ArrowRight, Mic, Code, Brain, Zap, Target, Trophy } from 'lucide-react';
+import { ArrowRight, Mic, Code, Brain, Target, Trophy, CheckCircle2, PlayCircle, Timer } from 'lucide-react';
+import { Logo } from '@/components/ui/Logo';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { Button } from '@/components/ui/Button';
 
 export default function HomePage() {
     return (
-        <div className="min-h-screen bg-[#0a0a0b] text-white overflow-hidden">
-            {/* Animated Background */}
-            <div className="fixed inset-0 pointer-events-none">
-                <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl animate-pulse"></div>
-                <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
-            </div>
-
-            {/* Navigation */}
-            <nav className="relative z-10 flex items-center justify-between px-8 py-6 max-w-7xl mx-auto">
-                <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center">
-                        <Mic className="w-5 h-5 text-white" />
-                    </div>
-                    <span className="text-xl font-bold">InterviewAI</span>
+        <div className="min-h-screen overflow-x-hidden interview-surface text-foreground">
+            <nav className="flex items-center justify-between px-4 sm:px-8 py-6 max-w-6xl mx-auto">
+                <Logo href="/" />
+                <div className="flex items-center gap-3">
+                    <ThemeToggle />
+                    <Link href="/login">
+                        <Button variant="primary" size="sm">Sign in</Button>
+                    </Link>
                 </div>
-                <Link
-                    href="/dashboard"
-                    className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all text-sm font-medium"
-                >
-                    Get Started
-                </Link>
             </nav>
 
-            {/* Hero Section */}
-            <main className="relative z-10 max-w-7xl mx-auto px-8 pt-20 pb-32">
-                <div className="text-center max-w-4xl mx-auto">
-                    {/* Badge */}
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500/10 border border-orange-500/20 rounded-full mb-8">
-                        <Zap className="w-4 h-4 text-orange-400" />
-                        <span className="text-sm text-orange-300">AI-Powered Interview Practice</span>
-                    </div>
-
-                    {/* Headline */}
-                    <h1 className="text-5xl md:text-7xl font-bold leading-tight mb-6">
-                        Prepare for Interviews
-                        <span className="block bg-gradient-to-r from-orange-400 via-orange-500 to-purple-500 bg-clip-text text-transparent">
-                            Like Never Before
-                        </span>
+            <main className="max-w-6xl mx-auto px-4 sm:px-8 pt-10 sm:pt-16 pb-24">
+                <section className="grid min-w-0 lg:grid-cols-[0.92fr_1.08fr] gap-10 lg:gap-14 items-center">
+                    <div className="min-w-0">
+                    <h1 className="text-2xl sm:text-5xl md:text-6xl font-semibold tracking-tight leading-tight mb-6 text-slate-950 break-words">
+                        Train for technical interviews in a real coding room
                     </h1>
-
-                    {/* Subheadline */}
-                    <p className="text-xl text-[#a0a0a5] max-w-2xl mx-auto mb-10">
-                        Practice with an AI interviewer that listens, responds, and gives you real-time feedback.
-                        Master DSA, Frontend, Backend, and more.
+                    <p className="text-base sm:text-lg text-slate-600 max-w-xl mb-8">
+                        Practice DSA, system design, frontend, backend, and DevOps with an AI interviewer,
+                        a live editor, and feedback that reads like a hiring debrief.
                     </p>
-
-                    {/* CTA Buttons */}
-                    <div className="flex items-center justify-center gap-4">
-                        <Link
-                            href="/dashboard"
-                            className="group flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 rounded-xl font-semibold transition-all shadow-lg shadow-orange-500/30 hover:shadow-orange-500/40"
-                        >
-                            Start Practicing
-                            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                    <div className="flex flex-col sm:flex-row gap-3">
+                        <Link href="/signup">
+                            <Button variant="primary" size="lg" className="w-full sm:w-auto">
+                                Start practice
+                                <ArrowRight className="w-4 h-4" />
+                            </Button>
+                        </Link>
+                        <Link href="/login">
+                            <Button variant="outline" size="lg" className="w-full sm:w-auto">
+                                <PlayCircle className="w-4 h-4" />
+                                Open workspace
+                            </Button>
                         </Link>
                     </div>
+                    <div className="mt-8 grid grid-cols-3 gap-4 max-w-md">
+                        <LandingStat icon={<Target className="w-5 h-5" />} value="7" label="Tracks" />
+                        <LandingStat icon={<Timer className="w-5 h-5" />} value="Live" label="Voice loop" />
+                        <LandingStat icon={<Trophy className="w-5 h-5" />} value="10pt" label="Scoring" />
+                    </div>
+                    </div>
+
+                    <InterviewPreview />
+                </section>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-24">
+                    <FeatureCard
+                        icon={<Mic className="w-5 h-5" />}
+                        title="Voice interviews"
+                        description="Practice explaining your thinking out loud with a conversational interviewer."
+                    />
+                    <FeatureCard
+                        icon={<Code className="w-5 h-5" />}
+                        title="Coding-room layout"
+                        description="Question, editor, voice, and progress panels stay visible during the session."
+                    />
+                    <FeatureCard
+                        icon={<Brain className="w-5 h-5" />}
+                        title="Multiple domains"
+                        description="Configure sessions for DSA, frontend, backend, fullstack, security, and DevOps."
+                    />
                 </div>
 
-                {/* Features Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-32">
-                    <FeatureCard
-                        icon={<Mic className="w-6 h-6" />}
-                        title="Voice-Based Interviews"
-                        description="Talk naturally with our AI interviewer. Practice explaining your thought process out loud."
-                        color="orange"
-                    />
-                    <FeatureCard
-                        icon={<Code className="w-6 h-6" />}
-                        title="Live Code Editor"
-                        description="Write and test your code in a real editor while the AI watches and provides hints."
-                        color="purple"
-                    />
-                    <FeatureCard
-                        icon={<Brain className="w-6 h-6" />}
-                        title="Personalized Practice"
-                        description="Choose your focus area: DSA, Frontend, Backend, Fullstack, Cybersecurity, and more."
-                        color="blue"
-                    />
-                </div>
-
-                {/* Interview Types Preview */}
-                <div className="mt-32 text-center">
-                    <h2 className="text-3xl font-bold mb-4">Master Any Interview</h2>
-                    <p className="text-[#a0a0a5] mb-12">Practice for the exact role you&apos;re targeting</p>
-
-                    <div className="flex flex-wrap justify-center gap-3">
+                <div className="mt-24">
+                    <h2 className="text-2xl font-semibold tracking-tight mb-4">Choose the loop you need</h2>
+                    <p className="text-muted-foreground mb-8">Practice for the role you are targeting</p>
+                    <div className="flex flex-wrap gap-2">
                         {['DSA', 'Frontend', 'Backend', 'Fullstack', 'Cybersecurity', 'DevOps', 'System Design'].map((type) => (
                             <span
                                 key={type}
-                                className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm hover:border-orange-500/50 hover:bg-orange-500/10 transition-all cursor-default"
+                                className="px-3 py-1.5 bg-card border border-border rounded-md text-sm text-muted-foreground"
                             >
                                 {type}
                             </span>
@@ -103,50 +87,106 @@ export default function HomePage() {
                     </div>
                 </div>
 
-                {/* Stats */}
-                <div className="grid grid-cols-3 gap-8 mt-32 max-w-3xl mx-auto">
-                    <StatCard icon={<Target className="w-8 h-8" />} value="50+" label="Question Types" />
-                    <StatCard icon={<Mic className="w-8 h-8" />} value="Real" label="Voice AI" />
-                    <StatCard icon={<Trophy className="w-8 h-8" />} value="Instant" label="Feedback" />
-                </div>
+                <section className="mt-24 rounded-lg border border-border bg-white p-6 shadow-sm">
+                    <div className="grid gap-4 md:grid-cols-3">
+                        {['Clarify the prompt out loud', 'Code with interviewer pressure', 'Review verdict and next steps'].map((step, index) => (
+                            <div key={step} className="flex items-start gap-3">
+                                <CheckCircle2 className="mt-0.5 h-5 w-5 text-success" />
+                                <div>
+                                    <p className="font-medium">Step {index + 1}</p>
+                                    <p className="text-sm text-muted-foreground">{step}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </section>
             </main>
 
-            {/* Footer */}
-            <footer className="relative z-10 border-t border-white/10 py-8">
-                <div className="max-w-7xl mx-auto px-8 text-center text-[#6b6b70] text-sm">
-                    Built by Rohan to help you ace your next interview
+            <footer className="border-t border-border py-8">
+                <div className="max-w-6xl mx-auto px-4 sm:px-8 text-center text-muted-foreground text-sm">
+                    Interview practice platform
                 </div>
             </footer>
         </div>
     );
 }
 
-function FeatureCard({ icon, title, description, color }: { icon: React.ReactNode; title: string; description: string; color: string }) {
-    const colorClasses = {
-        orange: 'bg-orange-500/20 text-orange-400 border-orange-500/20',
-        purple: 'bg-purple-500/20 text-purple-400 border-purple-500/20',
-        blue: 'bg-blue-500/20 text-blue-400 border-blue-500/20'
-    };
-
+function FeatureCard({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
     return (
-        <div className="p-6 bg-white/5 border border-white/10 rounded-2xl hover:border-white/20 transition-all group">
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${colorClasses[color as keyof typeof colorClasses]}`}>
+        <div className="p-6 bg-white border border-border rounded-lg shadow-sm">
+            <div className="w-10 h-10 rounded-md bg-blue-50 flex items-center justify-center mb-4 text-primary">
                 {icon}
             </div>
-            <h3 className="text-lg font-semibold mb-2 group-hover:text-orange-400 transition-colors">{title}</h3>
-            <p className="text-[#a0a0a5] text-sm leading-relaxed">{description}</p>
+            <h3 className="font-medium mb-2">{title}</h3>
+            <p className="text-muted-foreground text-sm leading-relaxed">{description}</p>
         </div>
     );
 }
 
-function StatCard({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
+function LandingStat({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
     return (
-        <div className="text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-white/5 border border-white/10 rounded-2xl mb-3 text-orange-400">
+        <div>
+            <div className="inline-flex items-center justify-center w-10 h-10 bg-white border border-border rounded-md mb-3 text-primary shadow-sm">
                 {icon}
             </div>
-            <div className="text-2xl font-bold mb-1">{value}</div>
-            <div className="text-sm text-[#6b6b70]">{label}</div>
+            <div className="text-xl font-semibold mb-0.5">{value}</div>
+            <div className="text-sm text-muted-foreground">{label}</div>
+        </div>
+    );
+}
+
+function InterviewPreview() {
+    return (
+        <div className="w-full min-w-0 max-w-full rounded-lg border border-slate-200 bg-white shadow-xl shadow-slate-900/10 overflow-hidden">
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+                <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                </div>
+                <span className="text-xs font-medium text-slate-500">Live Interview · DSA Medium</span>
+            </div>
+            <div className="grid min-h-[420px] min-w-0 md:grid-cols-[0.86fr_1.14fr]">
+                <div className="min-w-0 border-r border-slate-200 p-5">
+                    <div className="mb-4 flex items-center justify-between">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Question</span>
+                        <span className="rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">Medium</span>
+                    </div>
+                    <h3 className="text-lg font-semibold text-slate-950">Two Sum Variant</h3>
+                    <p className="mt-3 text-sm leading-relaxed text-slate-600">
+                        Return the indexes of two numbers that add up to the target. Explain complexity before coding.
+                    </p>
+                    <div className="mt-5 rounded-md border border-slate-200 bg-slate-50 p-3 font-mono text-xs text-slate-600">
+                        Input: nums = [2, 7, 11, 15]<br />
+                        target = 9<br />
+                        Output: [0, 1]
+                    </div>
+                    <div className="mt-6 flex items-center gap-2 text-sm text-emerald-700">
+                        <Mic className="h-4 w-4" />
+                        Interviewer is listening
+                    </div>
+                </div>
+                <div className="min-w-0 flex flex-col bg-slate-950 text-slate-100">
+                    <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+                        <span className="font-mono text-xs text-slate-300">solution.py</span>
+                        <span className="text-xs text-emerald-300">Auto-saved</span>
+                    </div>
+                    <pre className="flex-1 overflow-hidden whitespace-pre-wrap break-words p-5 text-sm leading-7 text-slate-300">
+{`def two_sum(nums, target):
+    seen = {}
+    for i, value in enumerate(nums):
+        need = target - value
+        if need in seen:
+            return [seen[need], i]
+        seen[value] = i`}
+                    </pre>
+                    <div className="grid grid-cols-3 border-t border-white/10 text-center text-xs">
+                        <div className="p-3 text-emerald-300">Passed 3/3</div>
+                        <div className="p-3 text-slate-300">O(n)</div>
+                        <div className="p-3 text-blue-300">Q 1/3</div>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }
