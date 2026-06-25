@@ -5,6 +5,7 @@ export function getSttLanguage(voiceId: string): string {
     const supported: Record<string, string> = {
         'en-US': 'en-US',
         'en-GB': 'en-GB',
+        'en-UK': 'en-GB',
         'en-AU': 'en-AU',
         'en-IN': 'en-IN',
         'es-ES': 'es',
@@ -15,4 +16,14 @@ export function getSttLanguage(voiceId: string): string {
     };
 
     return supported[locale] ?? 'en-US';
+}
+
+/** Deepgram live STT connection parameters */
+export function getDeepgramLiveConfig(voiceId: string) {
+    return {
+        model: 'nova-2',
+        language: getSttLanguage(voiceId),
+        encoding: 'webm',
+        sampleRate: 48000,
+    };
 }

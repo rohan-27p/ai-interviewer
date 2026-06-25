@@ -4,7 +4,8 @@ import { Groq } from 'groq-sdk';
 import { Message, Question } from '@/lib/types';
 import { createClient as createSupabaseClient } from '@/lib/supabase/server';
 import { generateIntro } from '@/lib/ai/intro';
-import { synthesizeSpeech } from '@/lib/ai/tts';
+import { getCachedSpeech } from '@/lib/ai/tts';
+import { parseStructuredTurnResponse } from '@/lib/ai/turn-response';
 import { getSttLanguage } from '@/lib/stt';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
@@ -245,9 +246,10 @@ RESPONSE STYLE:
 - Don't repeat what they just said
 - Correct errors constructively: "I noticed X, can you fix that?"
 
-STATUS TAGS (REQUIRED):
-- [STATUS:COMPLETE] = ALL follow-ups done (${currentFollowupCount}/${maxFollowups}) AND question answered
-- [STATUS:CONTINUE] = Still have follow-ups remaining OR answer incomplete
+OUTPUT FORMAT (REQUIRED — valid JSON only, no markdown):
+{"reply":"your spoken response to the candidate","status":"CONTINUE"}
+Use status "COMPLETE" only when follow-ups are exhausted and the question is fully answered.
+Use status "CONTINUE" while follow-ups remain or the answer is incomplete.
 
 REMEMBER: You are ONLY evaluating "${actualQuestionTitle}" with exactly ${maxFollowups} follow-ups!`;
 
@@ -259,6 +261,7 @@ REMEMBER: You are ONLY evaluating "${actualQuestionTitle}" with exactly ${maxFol
 
         const llmStart = Date.now();
         let aiReply = "I didn't catch that. Could you repeat that?";
+        let aiStatus: 'COMPLETE' | 'CONTINUE' = 'CONTINUE';
         let llmTime = 0;
 
         try {
@@ -266,10 +269,14 @@ REMEMBER: You are ONLY evaluating "${actualQuestionTitle}" with exactly ${maxFol
                 messages: messages as Message[],
                 model: 'llama-3.3-70b-versatile',
                 temperature: 0.6,
-                max_tokens: 150,
+                max_tokens: 180,
+                response_format: { type: 'json_object' },
             });
             llmTime = Date.now() - llmStart;
-            aiReply = completion.choices[0]?.message?.content || aiReply;
+            const rawReply = completion.choices[0]?.message?.content || aiReply;
+            const structured = parseStructuredTurnResponse(rawReply);
+            aiReply = structured.reply;
+            aiStatus = structured.status;
         } catch (llmError) {
             logger.error('llm_failed', { sessionId, error: String(llmError) });
             return NextResponse.json({
@@ -281,12 +288,7 @@ REMEMBER: You are ONLY evaluating "${actualQuestionTitle}" with exactly ${maxFol
         console.log(`⏱️ LLM: ${llmTime}ms`);
         console.log('AI replied:', aiReply);
 
-        // FIX: Parse status tag with OPTIONAL space (handles both [STATUS:COMPLETE] and [STATUS: COMPLETE])
-        const statusMatch = aiReply.match(/\[STATUS:\s*(COMPLETE|CONTINUE)\]/);
-        const aiStatus = statusMatch ? statusMatch[1] : 'CONTINUE';
-
-        // Remove status tag from user-visible reply
-        const cleanReply = aiReply.replace(/\[STATUS:\s*(COMPLETE|CONTINUE)\]/, '').trim();
+        const cleanReply = aiReply;
 
         console.log('AI Status:', aiStatus);
 
@@ -388,6 +390,7 @@ REMEMBER: You are ONLY evaluating "${actualQuestionTitle}" with exactly ${maxFol
                     transcript: userTranscript,
                     reply: intro.introText,
                     audioBase64: intro.audioBase64,
+                    streamTts: !intro.audioBase64,
                     newQuestion,
                     shouldEndInterview: false,
                     timing: { stt: sttTime, total: Date.now() - totalStart },
@@ -423,7 +426,9 @@ REMEMBER: You are ONLY evaluating "${actualQuestionTitle}" with exactly ${maxFol
 
         const ttsStart = Date.now();
         const voiceId = session.voice_id || 'en-US-matthew';
-        const audioBase64 = await synthesizeSpeech(cleanReply, voiceId);
+        const cachedAudio = getCachedSpeech(cleanReply, voiceId);
+        const audioBase64 = cachedAudio;
+        const streamTts = !cachedAudio;
         const ttsTime = Date.now() - ttsStart;
 
         if (!audioBase64) {
@@ -454,7 +459,8 @@ REMEMBER: You are ONLY evaluating "${actualQuestionTitle}" with exactly ${maxFol
         return NextResponse.json({
             transcript: userTranscript,
             reply: cleanReply,
-            audioBase64: audioBase64,
+            audioBase64,
+            streamTts,
             newQuestion: newQuestion,
             shouldEndInterview: isFinalQuestion && (userRequestedNext || aiStatus === 'COMPLETE')
         });

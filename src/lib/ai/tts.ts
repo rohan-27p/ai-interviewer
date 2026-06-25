@@ -23,14 +23,30 @@ function cacheKey(text: string, voiceId: string): string {
     return `${voiceId}::${text.trim()}`;
 }
 
-export async function synthesizeSpeech(text: string, voiceId = 'en-US-matthew'): Promise<string | null> {
+export function getCachedSpeech(text: string, voiceId = 'en-US-matthew'): string | null {
+    if (!text.trim()) return null;
+    return ttsCache.get(cacheKey(text, voiceId)) ?? null;
+}
+
+function buildMurfRequestBody(text: string, voiceId: string) {
+    const locale = voiceId.split('-').slice(0, 2).join('-');
+    return {
+        voiceId,
+        text,
+        multiNativeLocale: locale,
+        model: 'FALCON',
+        format: 'MP3',
+        sampleRate: 24000,
+        channelType: 'MONO',
+    };
+}
+
+export async function fetchSpeechStream(
+    text: string,
+    voiceId = 'en-US-matthew'
+): Promise<Response | null> {
     if (!MURF_API_KEY || !text.trim()) return null;
 
-    const key = cacheKey(text, voiceId);
-    const cached = ttsCache.get(key);
-    if (cached) return cached;
-
-    const locale = voiceId.split('-').slice(0, 2).join('-');
     const murfUrl = 'https://global.api.murf.ai/v1/speech/stream';
 
     try {
@@ -40,18 +56,26 @@ export async function synthesizeSpeech(text: string, voiceId = 'en-US-matthew'):
                 'Content-Type': 'application/json',
                 'api-key': MURF_API_KEY,
             },
-            body: JSON.stringify({
-                voiceId,
-                text,
-                multiNativeLocale: locale,
-                model: 'FALCON',
-                format: 'MP3',
-                sampleRate: 24000,
-                channelType: 'MONO',
-            }),
+            body: JSON.stringify(buildMurfRequestBody(text, voiceId)),
         });
 
-        if (!murfResponse.ok) return null;
+        if (!murfResponse.ok || !murfResponse.body) return null;
+        return murfResponse;
+    } catch {
+        return null;
+    }
+}
+
+export async function synthesizeSpeech(text: string, voiceId = 'en-US-matthew'): Promise<string | null> {
+    if (!MURF_API_KEY || !text.trim()) return null;
+
+    const key = cacheKey(text, voiceId);
+    const cached = ttsCache.get(key);
+    if (cached) return cached;
+
+    try {
+        const murfResponse = await fetchSpeechStream(text, voiceId);
+        if (!murfResponse) return null;
 
         const audioArrayBuffer = await murfResponse.arrayBuffer();
         if (audioArrayBuffer.byteLength < 1000) return null;
