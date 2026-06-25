@@ -31,6 +31,28 @@ interface TurnResponse {
     shouldEndInterview?: boolean;
 }
 
+function getMicrophoneErrorMessage(error: unknown): string {
+    if (error instanceof DOMException) {
+        if (error.name === 'NotAllowedError' || error.name === 'SecurityError') {
+            return 'Microphone access is blocked. Allow microphone permission in your browser, then try again.';
+        }
+
+        if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+            return 'No microphone was found. Connect a microphone, then try again.';
+        }
+
+        if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+            return 'Your microphone is already in use by another app. Close it, then try again.';
+        }
+
+        if (error.name === 'NotSupportedError') {
+            return 'This browser cannot record microphone audio here. Try Chrome or check that the page is using HTTPS.';
+        }
+    }
+
+    return 'Could not access microphone. Check your browser permission and try again.';
+}
+
 export function useInterviewAudio({
     sessionId,
     config,
@@ -225,14 +247,26 @@ export function useInterviewAudio({
             } catch (error) {
                 console.error('Turn processing error:', error);
                 setInterviewState('idle');
-                alert('Something went wrong processing your response.');
+                toast.error('Something went wrong processing your response. Please try again.', {
+                    position: 'top-center',
+                    autoClose: 5000,
+                });
             }
         },
         [code, currentQuestion, handleTurnResult, previousQuestions, sessionId, submitTurn]
     );
 
     const startRecording = useCallback(async () => {
+        let stream: MediaStream | null = null;
+
         try {
+            if (!navigator.mediaDevices?.getUserMedia) {
+                throw new DOMException('Microphone capture is unavailable', 'NotSupportedError');
+            }
+
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const activeStream = stream;
+
             const tokenResponse = await fetch(
                 `/api/stt/token?voiceId=${encodeURIComponent(config.voiceId)}`
             );
@@ -242,7 +276,6 @@ export function useInterviewAudio({
             const liveStt = new DeepgramLiveSTT();
             liveSttRef.current = liveStt;
 
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             await liveStt.start({ token, voiceId: config.voiceId });
 
             const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
@@ -255,13 +288,16 @@ export function useInterviewAudio({
             };
 
             mediaRecorder.onstop = async () => {
-                stream.getTracks().forEach((track) => track.stop());
+                activeStream.getTracks().forEach((track) => track.stop());
                 const transcript = await liveStt.stop();
                 liveSttRef.current = null;
 
                 if (!transcript) {
                     setInterviewState('idle');
-                    alert('No speech detected. Try speaking again.');
+                    toast.warning('No speech detected. Try speaking again.', {
+                        position: 'top-center',
+                        autoClose: 3500,
+                    });
                     return;
                 }
 
@@ -272,8 +308,13 @@ export function useInterviewAudio({
             setInterviewState('listening');
         } catch (err) {
             console.error('Error accessing microphone:', err);
-            alert('Could not access microphone.');
+            stream?.getTracks().forEach((track) => track.stop());
+            liveSttRef.current = null;
             setInterviewState('idle');
+            toast.error(getMicrophoneErrorMessage(err), {
+                position: 'top-center',
+                autoClose: 7000,
+            });
         }
     }, [config.voiceId, processLiveTranscript]);
 
