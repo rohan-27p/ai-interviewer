@@ -148,6 +148,10 @@ body {
     radial-gradient(circle at top left, rgba(37, 99, 235, 0.1), transparent 34%);
 }
 
+[data-theme="dark"] .interview-surface {
+  background: var(--background);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

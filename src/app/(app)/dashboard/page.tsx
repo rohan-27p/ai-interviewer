@@ -140,11 +140,11 @@ export default function DashboardPage() {
 
     return (
         <div>
-            <div className="mb-8 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="mb-8 overflow-hidden rounded-lg border border-border bg-card shadow-sm">
                 <div className="grid gap-6 p-6 lg:grid-cols-[1fr_340px] lg:p-8">
                     <div>
                         <p className="text-sm font-medium text-primary">Interview command center</p>
-                        <h1 className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight text-slate-950">
+                        <h1 className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight text-foreground">
                             Welcome back, {profile?.full_name || 'there'}
                         </h1>
                         <p className="mt-2 max-w-2xl text-muted-foreground">
@@ -165,7 +165,7 @@ export default function DashboardPage() {
                             </Link>
                         </div>
                     </div>
-                    <div className="rounded-lg border border-slate-200 bg-slate-950 p-4 text-slate-100">
+                    <div className="rounded-lg border border-border bg-slate-950 p-4 text-slate-100">
                         <div className="flex items-center justify-between border-b border-white/10 pb-3">
                             <span className="font-mono text-xs text-slate-300">prep-plan.json</span>
                             <span className="text-xs text-emerald-300">active</span>
@@ -217,7 +217,7 @@ export default function DashboardPage() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <Link
                         href="/setup"
-                        className="group p-5 bg-white border border-border rounded-lg shadow-sm hover:border-primary/40 hover:shadow-md transition-all"
+                        className="group p-5 bg-card border border-border rounded-lg shadow-sm hover:border-primary/40 hover:shadow-md transition-all"
                     >
                         <div className="flex items-center justify-between">
                             <div>
@@ -229,7 +229,7 @@ export default function DashboardPage() {
                     </Link>
                     <Link
                         href="/feedback"
-                        className="group p-5 bg-white border border-border rounded-lg shadow-sm hover:border-primary/40 hover:shadow-md transition-all"
+                        className="group p-5 bg-card border border-border rounded-lg shadow-sm hover:border-primary/40 hover:shadow-md transition-all"
                     >
                         <div className="flex items-center justify-between">
                             <div>
@@ -241,7 +241,7 @@ export default function DashboardPage() {
                     </Link>
                     <Link
                         href="/profile"
-                        className="group p-5 bg-white border border-border rounded-lg shadow-sm hover:border-primary/40 hover:shadow-md transition-all"
+                        className="group p-5 bg-card border border-border rounded-lg shadow-sm hover:border-primary/40 hover:shadow-md transition-all"
                     >
                         <div className="flex items-center justify-between">
                             <div>
@@ -257,7 +257,7 @@ export default function DashboardPage() {
             <div className="mb-10">
                 <h2 className="text-lg font-semibold tracking-tight mb-4">Recent sessions</h2>
                 {sessions.length === 0 ? (
-                    <div className="p-12 bg-white border border-border rounded-lg text-center shadow-sm">
+                    <div className="p-12 bg-card border border-border rounded-lg text-center shadow-sm">
                         <Clock className="w-10 h-10 text-muted-foreground mx-auto mb-4" />
                         <p className="text-muted-foreground mb-4">No interviews yet</p>
                         <Link href="/setup">

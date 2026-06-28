@@ -89,16 +89,16 @@ export default function SetupPage() {
         cn(
             'border rounded-lg transition-all text-left shadow-sm',
             selected
-                ? 'border-primary bg-blue-50 ring-2 ring-blue-100'
-                : 'border-border bg-white hover:border-primary/40 hover:shadow-md'
+                ? 'border-primary bg-accent/10 ring-2 ring-accent/20'
+                : 'border-border bg-card hover:border-primary/40 hover:shadow-md'
         );
 
     return (
         <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[1fr_320px]">
             <div className="space-y-8">
-            <div className="rounded-lg border border-border bg-white p-6 shadow-sm">
+            <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
                 <div className="flex items-start gap-4">
-                    <div className="grid h-11 w-11 place-items-center rounded-md bg-blue-50 text-primary">
+                    <div className="grid h-11 w-11 place-items-center rounded-md bg-accent/10 text-primary">
                         <SlidersHorizontal className="h-5 w-5" />
                     </div>
                     <div>
@@ -112,7 +112,7 @@ export default function SetupPage() {
 
             {error && <AlertBanner variant="error">{error}</AlertBanner>}
 
-            <section className="rounded-lg border border-border bg-white p-6 shadow-sm">
+            <section className="rounded-lg border border-border bg-card p-6 shadow-sm">
                 <h2 className="text-base font-medium mb-1">Interview type</h2>
                 <p className="text-muted-foreground text-sm mb-4">Select the area you want to practice</p>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -140,7 +140,7 @@ export default function SetupPage() {
                 </div>
             </section>
 
-            <section className="rounded-lg border border-border bg-white p-6 shadow-sm">
+            <section className="rounded-lg border border-border bg-card p-6 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                     <div>
                         <h2 className="text-base font-medium mb-1">Topics</h2>
@@ -175,7 +175,7 @@ export default function SetupPage() {
                                 className={cn(
                                     'px-3 py-1.5 rounded-md text-sm border transition-colors',
                                     isSelected
-                                        ? 'border-primary bg-blue-50 text-primary'
+                                        ? 'border-primary bg-accent/10 text-primary'
                                         : 'border-border text-muted-foreground hover:border-primary/40'
                                 )}
                             >
@@ -186,7 +186,7 @@ export default function SetupPage() {
                 </div>
             </section>
 
-            <section className="rounded-lg border border-border bg-white p-6 shadow-sm">
+            <section className="rounded-lg border border-border bg-card p-6 shadow-sm">
                 <h2 className="text-base font-medium mb-1">Difficulty</h2>
                 <p className="text-muted-foreground text-sm mb-4">Choose the challenge level</p>
                 <div className="flex gap-3">
@@ -207,7 +207,7 @@ export default function SetupPage() {
                 </div>
             </section>
 
-            <section className="rounded-lg border border-border bg-white p-6 shadow-sm">
+            <section className="rounded-lg border border-border bg-card p-6 shadow-sm">
                 <h2 className="text-base font-medium mb-1">Interviewer accent</h2>
                 <p className="text-muted-foreground text-sm mb-4">Voice accent for the AI interviewer</p>
                 <div className="flex flex-wrap gap-2">
@@ -221,7 +221,7 @@ export default function SetupPage() {
                                 className={cn(
                                     'px-4 py-2 rounded-md border text-sm font-medium transition-colors',
                                     isSelected
-                                        ? 'border-primary bg-blue-50 text-primary'
+                                        ? 'border-primary bg-accent/10 text-primary'
                                         : 'border-border text-muted-foreground hover:border-primary/40'
                                 )}
                             >
@@ -232,7 +232,7 @@ export default function SetupPage() {
                 </div>
             </section>
 
-            <section className="rounded-lg border border-border bg-white p-6 shadow-sm">
+            <section className="rounded-lg border border-border bg-card p-6 shadow-sm">
                 <h2 className="text-base font-medium mb-1">Number of questions</h2>
                 <p className="text-muted-foreground text-sm mb-4">How many questions in this session</p>
                 <div className="flex items-center gap-6">
@@ -250,7 +250,7 @@ export default function SetupPage() {
                 </div>
             </section>
 
-            <div className="rounded-lg border border-border bg-white p-6 shadow-sm">
+            <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
                 <Button
                     variant="primary"
                     size="lg"
@@ -270,7 +270,7 @@ export default function SetupPage() {
             </div>
             </div>
 
-            <aside className="lg:sticky lg:top-8 h-fit rounded-lg border border-slate-200 bg-slate-950 p-5 text-slate-100 shadow-sm">
+            <aside className="lg:sticky lg:top-8 h-fit rounded-lg border border-border bg-slate-950 p-5 text-slate-100 shadow-sm">
                 <div className="flex items-center justify-between border-b border-white/10 pb-4">
                     <span className="text-sm font-semibold">Session preview</span>
                     <span className="rounded-md bg-emerald-400/10 px-2 py-1 text-xs text-emerald-300">Ready</span>

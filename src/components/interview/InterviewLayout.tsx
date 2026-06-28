@@ -7,7 +7,7 @@ interface InterviewLayoutProps {
 
 export function InterviewLayout({ children }: InterviewLayoutProps) {
     return (
-        <div className="h-screen w-full bg-slate-100 text-foreground flex overflow-hidden">
+        <div className="h-screen w-full bg-background text-foreground flex overflow-hidden">
             <ToastContainer />
             {children}
         </div>

@@ -29,7 +29,7 @@ export function SessionCard({ session }: SessionCardProps) {
     return (
         <Link
             href={href}
-            className="block p-5 bg-white border border-border rounded-lg shadow-sm hover:border-primary/40 hover:shadow-md transition-all"
+            className="block p-5 bg-card border border-border rounded-lg shadow-sm hover:border-primary/40 hover:shadow-md transition-all"
         >
             <div className="flex items-start justify-between gap-4">
                 <div>

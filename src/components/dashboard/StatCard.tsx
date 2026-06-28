@@ -10,13 +10,13 @@ interface StatCardProps {
 
 export function StatCard({ icon, label, value, highlight = false }: StatCardProps) {
     return (
-        <div className="p-5 bg-white border border-border rounded-lg shadow-sm">
+        <div className="p-5 bg-card border border-border rounded-lg shadow-sm">
             <div
                 className={cn(
                     'w-10 h-10 rounded-md flex items-center justify-center mb-4 border',
                     highlight
-                        ? 'bg-blue-50 text-primary border-blue-100'
-                        : 'bg-slate-50 text-slate-500 border-slate-200'
+                        ? 'bg-accent/10 text-primary border-accent/20'
+                        : 'bg-secondary text-muted-foreground border-border'
                 )}
             >
                 {icon}

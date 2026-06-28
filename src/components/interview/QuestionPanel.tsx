@@ -25,15 +25,15 @@ export function QuestionPanel({
     onFetchQuestion,
 }: QuestionPanelProps) {
     return (
-        <div className="w-[340px] min-w-[300px] flex flex-col border-r border-slate-200 bg-white">
-            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+        <div className="w-[340px] min-w-[300px] flex flex-col border-r border-border bg-card">
+            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
                 <div>
-                    <span className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    <span className="inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         <ListChecks className="h-3.5 w-3.5" />
                         {isDSA ? 'Question' : 'Topic'}
                     </span>
                     <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs px-2 py-0.5 rounded-md bg-blue-50 text-primary border border-blue-100">
+                        <span className="text-xs px-2 py-0.5 rounded-md bg-accent/10 text-primary border border-accent/20">
                             {formatInterviewTypeDisplay(interviewType)}
                         </span>
                         <span className="text-xs text-muted-foreground">
@@ -41,7 +41,7 @@ export function QuestionPanel({
                         </span>
                     </div>
                 </div>
-                <Link href="/dashboard" className="grid h-8 w-8 place-items-center rounded-md border border-slate-200 text-muted-foreground hover:text-foreground hover:bg-slate-50 transition-colors">
+                <Link href="/dashboard" className="grid h-8 w-8 place-items-center rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
                     <ArrowLeft className="w-4 h-4" />
                 </Link>
             </div>
@@ -55,7 +55,7 @@ export function QuestionPanel({
                 ) : currentQuestion ? (
                     <>
                         <div className="flex items-center gap-2 mb-3">
-                            <h2 className="text-lg font-semibold tracking-tight text-slate-950">{currentQuestion.title}</h2>
+                            <h2 className="text-lg font-semibold tracking-tight text-foreground">{currentQuestion.title}</h2>
                             <span
                                 className={cn(
                                     'text-xs px-2 py-0.5 rounded-md',
@@ -89,7 +89,7 @@ export function QuestionPanel({
                                 {currentQuestion.examples.map((ex, i) => (
                                     <div
                                         key={i}
-                                        className="bg-slate-50 rounded-md p-3 font-mono text-xs text-slate-600 mb-3 border border-slate-200"
+                                        className="bg-secondary rounded-md p-3 font-mono text-xs text-muted-foreground mb-3 border border-border"
                                     >
                                         <div>
                                             <span className="text-foreground">Input:</span> {stringify(ex.input)}
@@ -106,7 +106,7 @@ export function QuestionPanel({
                         )}
 
                         {!isDSA && (
-                            <div className="mt-6 p-4 bg-blue-50 rounded-md border border-blue-100">
+                            <div className="mt-6 p-4 bg-accent/10 rounded-md border border-accent/20">
                                 <h3 className="text-sm font-medium mb-2">Interview tips</h3>
                                 <ul className="text-xs text-muted-foreground space-y-1">
                                     <li>· Explain your thought process clearly</li>

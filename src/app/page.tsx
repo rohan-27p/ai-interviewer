@@ -23,10 +23,10 @@ export default function HomePage() {
             <main className="max-w-6xl mx-auto px-4 sm:px-8 pt-10 sm:pt-16 pb-24">
                 <section className="grid min-w-0 lg:grid-cols-[0.92fr_1.08fr] gap-10 lg:gap-14 items-center">
                     <div className="min-w-0">
-                    <h1 className="text-2xl sm:text-5xl md:text-6xl font-semibold tracking-tight leading-tight mb-6 text-slate-950 break-words">
+                    <h1 className="text-2xl sm:text-5xl md:text-6xl font-semibold tracking-tight leading-tight mb-6 text-foreground break-words">
                         Train for technical interviews in a real coding room
                     </h1>
-                    <p className="text-base sm:text-lg text-slate-600 max-w-xl mb-8">
+                    <p className="text-base sm:text-lg text-muted-foreground max-w-xl mb-8">
                         Practice DSA, system design, frontend, backend, and DevOps with an AI interviewer,
                         a live editor, and feedback that reads like a hiring debrief.
                     </p>
@@ -87,7 +87,7 @@ export default function HomePage() {
                     </div>
                 </div>
 
-                <section className="mt-24 rounded-lg border border-border bg-white p-6 shadow-sm">
+                <section className="mt-24 rounded-lg border border-border bg-card p-6 shadow-sm">
                     <div className="grid gap-4 md:grid-cols-3">
                         {['Clarify the prompt out loud', 'Code with interviewer pressure', 'Review verdict and next steps'].map((step, index) => (
                             <div key={step} className="flex items-start gap-3">
@@ -113,8 +113,8 @@ export default function HomePage() {
 
 function FeatureCard({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
     return (
-        <div className="p-6 bg-white border border-border rounded-lg shadow-sm">
-            <div className="w-10 h-10 rounded-md bg-blue-50 flex items-center justify-center mb-4 text-primary">
+        <div className="p-6 bg-card border border-border rounded-lg shadow-sm">
+            <div className="w-10 h-10 rounded-md bg-accent/10 flex items-center justify-center mb-4 text-primary">
                 {icon}
             </div>
             <h3 className="font-medium mb-2">{title}</h3>
@@ -126,7 +126,7 @@ function FeatureCard({ icon, title, description }: { icon: React.ReactNode; titl
 function LandingStat({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
     return (
         <div>
-            <div className="inline-flex items-center justify-center w-10 h-10 bg-white border border-border rounded-md mb-3 text-primary shadow-sm">
+            <div className="inline-flex items-center justify-center w-10 h-10 bg-card border border-border rounded-md mb-3 text-primary shadow-sm">
                 {icon}
             </div>
             <div className="text-xl font-semibold mb-0.5">{value}</div>

@@ -17,7 +17,7 @@ export function FeedbackCard({ feedback }: FeedbackCardProps) {
     return (
         <Link
             href={`/feedback/${feedback.session_id}`}
-            className="block p-5 bg-white border border-border rounded-lg shadow-sm hover:border-primary/40 hover:shadow-md transition-all"
+            className="block p-5 bg-card border border-border rounded-lg shadow-sm hover:border-primary/40 hover:shadow-md transition-all"
         >
             <div className="flex justify-between items-start mb-2 gap-2">
                 <div className="text-2xl font-semibold tracking-tight">{feedback.overall_score}/10</div>

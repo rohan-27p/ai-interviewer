@@ -23,8 +23,8 @@ export function InterviewerPanel({
         interviewState === 'processing' || interviewState === 'speaking' || isLoadingQuestion;
 
     return (
-        <div className="w-[300px] min-w-[260px] bg-white flex flex-col border-l border-slate-200">
-            <div className="flex-1 flex flex-col items-center justify-center p-6 border-b border-slate-200">
+        <div className="w-[300px] min-w-[260px] bg-card flex flex-col border-l border-border">
+            <div className="flex-1 flex flex-col items-center justify-center p-6 border-b border-border">
                 <div className="relative">
                     {interviewState === 'speaking' && (
                         <div className="absolute inset-0 rounded-full bg-blue-500/20 animate-ping" />
@@ -32,8 +32,8 @@ export function InterviewerPanel({
 
                     <div
                         className={cn(
-                            'w-20 h-20 rounded-full flex items-center justify-center border-2 transition-all duration-300 bg-slate-50',
-                            interviewState === 'speaking' ? 'border-primary shadow-lg shadow-blue-500/20' : 'border-slate-200'
+                            'w-20 h-20 rounded-full flex items-center justify-center border-2 transition-all duration-300 bg-secondary',
+                            interviewState === 'speaking' ? 'border-primary shadow-lg shadow-blue-500/20' : 'border-border'
                         )}
                     >
                         <svg className="w-10 h-10 text-muted-foreground" fill="currentColor" viewBox="0 0 24 24">
@@ -58,7 +58,7 @@ export function InterviewerPanel({
                 )}
             </div>
 
-            <div className="flex-1 flex flex-col items-center justify-center p-6 bg-slate-50">
+            <div className="flex-1 flex flex-col items-center justify-center p-6 bg-secondary">
                 <VoiceInterface state={interviewState} />
 
                 <div className="mt-6 flex flex-col items-center gap-3">
@@ -78,7 +78,7 @@ export function InterviewerPanel({
                             className={cn(
                                 'w-14 h-14 rounded-full flex items-center justify-center transition-all',
                                 isDisabled
-                                    ? 'bg-slate-200 cursor-not-allowed text-muted-foreground'
+                                    ? 'bg-secondary cursor-not-allowed text-muted-foreground'
                                     : 'bg-primary text-primary-foreground hover:bg-blue-700 shadow-lg shadow-blue-600/20'
                             )}
                         >
