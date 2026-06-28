@@ -7,6 +7,7 @@ import { Trophy, Target, Clock, ArrowRight, TrendingUp, Star, Code2, Mic2 } from
 import { createClient } from '@/lib/supabase/client';
 import { formatInterviewTypeDisplay } from '@/lib/interview-types';
 import { PageLoader } from '@/components/ui/PageLoader';
+import { AlertBanner } from '@/components/ui/AlertBanner';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { SessionCard } from '@/components/dashboard/SessionCard';
 import { FeedbackCard } from '@/components/dashboard/FeedbackCard';
@@ -51,12 +52,14 @@ export default function DashboardPage() {
     const [sessions, setSessions] = useState<InterviewSession[]>([]);
     const [feedback, setFeedback] = useState<FeedbackReport[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         loadDashboardData();
     }, []);
 
     const loadDashboardData = async () => {
+        setError(null);
         try {
             const { data: { user } } = await supabase.auth.getUser();
 
@@ -71,37 +74,49 @@ export default function DashboardPage() {
                 .eq('user_id', user.id)
                 .single();
 
-            if (statsError) {
-                console.error('Error fetching stats:', statsError);
+            if (statsError && statsError.code !== 'PGRST116') {
+                throw new Error(`Failed to load statistics: ${statsError.message}`);
             }
 
-            const { data: profileData } = await supabase
+            const { data: profileData, error: profileError } = await supabase
                 .from('user_profiles')
                 .select('full_name, avatar_url')
                 .eq('id', user.id)
                 .single();
 
+            if (profileError && profileError.code !== 'PGRST116') {
+                throw new Error(`Failed to load profile: ${profileError.message}`);
+            }
+
+            if (!stats) {
+                throw new Error('Could not load your statistics from the server.');
+            }
+
             setProfile({
                 id: user.id,
-                full_name: profileData?.full_name || user.email || 'User',
-                avatar_url: profileData?.avatar_url || null,
-                total_interviews: stats?.total_interviews || 0,
-                total_questions_solved: stats?.total_questions_attempted || 0,
-                questions_completed: stats?.questions_completed || 0,
-                average_score: stats?.average_score || 0,
+                full_name: profileData?.full_name ?? user.email ?? null,
+                avatar_url: profileData?.avatar_url ?? null,
+                total_interviews: stats.total_interviews,
+                total_questions_solved: stats.total_questions_attempted,
+                questions_completed: stats.questions_completed,
+                average_score: stats.average_score,
                 created_at: user.created_at,
             });
 
-            const { data: sessionsData } = await supabase
+            const { data: sessionsData, error: sessionsError } = await supabase
                 .from('interview_sessions')
                 .select('*')
                 .eq('user_id', user.id)
                 .order('created_at', { ascending: false })
                 .limit(5);
 
-            setSessions(sessionsData || []);
+            if (sessionsError) {
+                throw new Error(`Failed to load sessions: ${sessionsError.message}`);
+            }
 
-            const { data: feedbackData } = await supabase
+            setSessions(sessionsData);
+
+            const { data: feedbackData, error: feedbackError } = await supabase
                 .from('feedback_reports')
                 .select(`
                     *,
@@ -111,13 +126,19 @@ export default function DashboardPage() {
                 .order('created_at', { ascending: false })
                 .limit(6);
 
-            const mappedFeedback = (feedbackData || []).map((fb: { interview_sessions?: { interview_type?: string } } & FeedbackReport) => ({
+            if (feedbackError) {
+                throw new Error(`Failed to load feedback: ${feedbackError.message}`);
+            }
+
+            const mappedFeedback = feedbackData.map((fb: { interview_sessions?: { interview_type?: string } } & FeedbackReport) => ({
                 ...fb,
-                interview_type: fb.interview_sessions?.interview_type || 'Unknown',
+                interview_type: fb.interview_sessions?.interview_type,
             }));
             setFeedback(mappedFeedback);
-        } catch (error) {
-            console.error('Error loading dashboard:', error);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Failed to load dashboard data';
+            console.error('Error loading dashboard:', err);
+            setError(message);
         } finally {
             setLoading(false);
         }
@@ -127,14 +148,33 @@ export default function DashboardPage() {
         return <PageLoader />;
     }
 
+    if (error) {
+        return (
+            <div className="flex flex-col items-center justify-center py-20 gap-4">
+                <AlertBanner variant="error" className="max-w-md text-center">{error}</AlertBanner>
+                <Button variant="primary" onClick={() => { setLoading(true); loadDashboardData(); }}>
+                    Try again
+                </Button>
+            </div>
+        );
+    }
+
+    if (!profile) {
+        return (
+            <div className="flex flex-col items-center justify-center py-20 gap-4">
+                <p className="text-muted-foreground">No profile data available.</p>
+                <Link href="/login"><Button variant="outline">Go to login</Button></Link>
+            </div>
+        );
+    }
+
     const topSubject = (() => {
+        if (sessions.length === 0) return '—';
         const typeCounts: Record<string, number> = {};
         sessions.forEach((s) => {
-            const type = s.interview_type || 'Unknown';
-            typeCounts[type] = (typeCounts[type] || 0) + 1;
+            typeCounts[s.interview_type] = (typeCounts[s.interview_type] || 0) + 1;
         });
         const topType = Object.entries(typeCounts).sort((a, b) => b[1] - a[1])[0];
-        if (!topType) return 'None';
         return formatInterviewTypeDisplay(topType[0]);
     })();
 
@@ -145,7 +185,7 @@ export default function DashboardPage() {
                     <div>
                         <p className="text-sm font-medium text-primary">Interview command center</p>
                         <h1 className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight text-foreground">
-                            Welcome back, {profile?.full_name || 'there'}
+                            Welcome back, {profile.full_name}
                         </h1>
                         <p className="mt-2 max-w-2xl text-muted-foreground">
                             Continue your prep loop: choose a track, speak through tradeoffs, code under pressure,
@@ -192,18 +232,18 @@ export default function DashboardPage() {
                 <StatCard
                     icon={<Trophy className="w-5 h-5" />}
                     label="Total Interviews"
-                    value={profile?.total_interviews || 0}
+                    value={profile.total_interviews}
                     highlight
                 />
                 <StatCard
                     icon={<Target className="w-5 h-5" />}
                     label="Questions Completed"
-                    value={`${profile?.questions_completed ?? 0}/${profile?.total_questions_solved ?? 0}`}
+                    value={`${profile.questions_completed}/${profile.total_questions_solved}`}
                 />
                 <StatCard
                     icon={<TrendingUp className="w-5 h-5" />}
                     label="Average Score"
-                    value={`${profile?.average_score?.toFixed(1) || '0.0'}/10`}
+                    value={`${profile.average_score.toFixed(1)}/10`}
                 />
                 <StatCard
                     icon={<Star className="w-5 h-5" />}
