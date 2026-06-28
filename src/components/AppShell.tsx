@@ -46,8 +46,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 .eq('id', user.id)
                 .single();
 
-            setProfileName(data?.full_name || user.email || 'User');
-            setAvatarUrl(data?.avatar_url || null);
+            setProfileName(data?.full_name ?? user.email ?? null);
+            setAvatarUrl(data?.avatar_url ?? null);
         };
 
         loadProfile();
@@ -59,7 +59,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         router.refresh();
     };
 
-    const displayName = profileName?.trim() || 'User';
+    const displayName = profileName?.trim() || '';
     const initials = displayName
         .split(' ')
         .map((part) => part[0])
