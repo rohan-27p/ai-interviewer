@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client';
 import { formatInterviewTypeDisplay } from '@/lib/interview-types';
 import { getVerdictColor, getScoreColor } from '@/lib/feedback-utils';
 import { PageLoader } from '@/components/ui/PageLoader';
+import { AlertBanner } from '@/components/ui/AlertBanner';
 import { Button } from '@/components/ui/Button';
 import { StatCard } from '@/components/dashboard/StatCard';
 
@@ -32,12 +33,14 @@ export default function FeedbackListPage() {
 
     const [feedbackList, setFeedbackList] = useState<FeedbackReport[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         loadFeedback();
     }, []);
 
     const loadFeedback = async () => {
+        setError(null);
         try {
             const { data: { user } } = await supabase.auth.getUser();
 
@@ -46,7 +49,7 @@ export default function FeedbackListPage() {
                 return;
             }
 
-            const { data: feedbackData, error } = await supabase
+            const { data: feedbackData, error: fetchError } = await supabase
                 .from('feedback_reports')
                 .select(`
                     *,
@@ -55,18 +58,20 @@ export default function FeedbackListPage() {
                 .eq('user_id', user.id)
                 .order('created_at', { ascending: false });
 
-            if (error) {
-                console.error('Error fetching feedback:', error);
-            } else {
-                const mapped = (feedbackData || []).map((fb: FeedbackReport) => ({
-                    ...fb,
-                    interview_type: fb.interview_sessions?.interview_type || 'Unknown',
-                    difficulty: fb.interview_sessions?.difficulty || 'Unknown',
-                }));
-                setFeedbackList(mapped);
+            if (fetchError) {
+                throw new Error(`Failed to load feedback: ${fetchError.message}`);
             }
-        } catch (error) {
-            console.error('Error loading feedback:', error);
+
+            const mapped = feedbackData.map((fb: FeedbackReport) => ({
+                ...fb,
+                interview_type: fb.interview_sessions?.interview_type,
+                difficulty: fb.interview_sessions?.difficulty,
+            }));
+            setFeedbackList(mapped);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Failed to load feedback data';
+            console.error('Error loading feedback:', err);
+            setError(message);
         } finally {
             setLoading(false);
         }
@@ -85,6 +90,17 @@ export default function FeedbackListPage() {
 
     if (loading) {
         return <PageLoader />;
+    }
+
+    if (error) {
+        return (
+            <div className="flex flex-col items-center justify-center py-20 gap-4">
+                <AlertBanner variant="error" className="max-w-md text-center">{error}</AlertBanner>
+                <Button variant="primary" onClick={() => { setLoading(true); loadFeedback(); }}>
+                    Try again
+                </Button>
+            </div>
+        );
     }
 
     const avgScore =
@@ -142,12 +158,12 @@ export default function FeedbackListPage() {
                                         <span className="text-xs px-2 py-1 rounded-md bg-secondary text-muted-foreground border border-border">
                                             {fb.difficulty}
                                         </span>
-                                        <span className={`text-sm font-medium ${getVerdictColor(fb.overall_verdict || '')}`}>
-                                            {fb.overall_verdict || 'Pending'}
+                                        <span className={`text-sm font-medium ${getVerdictColor(fb.overall_verdict)}`}>
+                                            {fb.overall_verdict}
                                         </span>
                                     </div>
                                     <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
-                                        {fb.summary || 'No summary available'}
+                                        {fb.summary}
                                     </p>
                                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                                         <Clock className="w-3.5 h-3.5" />
