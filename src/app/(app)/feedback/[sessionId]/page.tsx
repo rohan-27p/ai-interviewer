@@ -253,11 +253,17 @@ export default function FeedbackPage({ params }: PageProps) {
 
     if (error || !feedback) {
         return (
-            <div className="flex flex-col items-center justify-center py-20">
-                <p className="text-lg mb-4">{error || 'No feedback data found'}</p>
-                <Link href="/feedback" className="text-accent hover:underline">
-                    Back to feedback
-                </Link>
+            <div className="flex flex-col items-center justify-center py-20 gap-4">
+                <div className="p-6 bg-destructive/10 border border-destructive/20 rounded-lg max-w-md text-center">
+                    <h2 className="text-lg font-semibold mb-2">Failed to load feedback</h2>
+                    <p className="text-sm text-muted-foreground mb-4">{error}</p>
+                    <div className="flex items-center justify-center gap-3">
+                        <Button variant="primary" onClick={() => window.location.reload()}>
+                            Try again
+                        </Button>
+                        <Link href="/feedback"><Button variant="outline">Back to feedback</Button></Link>
+                    </div>
+                </div>
             </div>
         );
     }
@@ -297,9 +303,9 @@ export default function FeedbackPage({ params }: PageProps) {
                         </div>
                         <div className="flex-1 text-center md:text-left">
                             <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getVerdictColor(feedback.overallVerdict)}`}>
-                                {feedback.overallVerdict || 'Pending Review'}
+                                {feedback.overallVerdict}
                             </span>
-                            <p className="text-muted-foreground leading-relaxed mt-4">{feedback.summary || 'No summary available'}</p>
+                            <p className="text-muted-foreground leading-relaxed mt-4">{feedback.summary}</p>
                         </div>
                     </div>
                 </div>
@@ -318,7 +324,7 @@ export default function FeedbackPage({ params }: PageProps) {
                                 <h3 className="font-medium">{title}</h3>
                             </div>
                             <ScoreCircle score={data?.score ?? 0} label="Score" />
-                            <p className="text-sm text-muted-foreground mt-4 leading-relaxed">{data?.feedback || 'No feedback available'}</p>
+                            <p className="text-sm text-muted-foreground mt-4 leading-relaxed">{data?.feedback ?? ''}</p>
                         </div>
                     ))}
                 </div>
