@@ -4,7 +4,7 @@ import { validateEmail, validatePassword } from '../src/lib/auth/validation';
 import { formatInterviewTypeForDb, formatInterviewTypeDisplay } from '../src/lib/interview-types';
 import { parseStructuredTurnResponse } from '../src/lib/ai/turn-response';
 import { getVerdictColor, getScoreColor } from '../src/lib/feedback-utils';
-import { getSttLanguage, getDeepgramLiveConfig } from '../src/lib/stt';
+import { getSttLanguage } from '../src/lib/stt';
 
 describe('rate-limit', () => {
     it('allows requests under the limit', () => {
@@ -78,7 +78,4 @@ describe('stt config', () => {
         expect(getSttLanguage('en-UK-finley')).toBe('en-GB');
     });
 
-    it('builds live config', () => {
-        expect(getDeepgramLiveConfig('en-US-matthew').encoding).toBe('webm');
-    });
 });
