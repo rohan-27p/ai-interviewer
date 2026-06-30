@@ -315,6 +315,34 @@ export function useInterviewAudio({
         }
     }, [interviewState]);
 
+    const submitTextResponse = useCallback(
+        async (text: string) => {
+            const transcript = text.trim();
+            if (!transcript || interviewState !== 'idle') return;
+
+            setInterviewState('processing');
+            const formData = new FormData();
+            formData.append('textResponse', transcript);
+            formData.append('sessionId', sessionId);
+            formData.append('code', code);
+            formData.append('currentQuestionTitle', currentQuestion?.title || '');
+            formData.append('previousQuestions', JSON.stringify(previousQuestions));
+
+            try {
+                const data = await submitTurn(formData);
+                await handleTurnResult(data);
+            } catch (error) {
+                console.error('Text turn processing error:', error);
+                setInterviewState('idle');
+                toast.error(
+                    error instanceof Error ? error.message : 'Could not process your response. Please try again.',
+                    { position: 'top-center', autoClose: 5000 }
+                );
+            }
+        },
+        [code, currentQuestion, handleTurnResult, interviewState, previousQuestions, sessionId, submitTurn]
+    );
+
     const endInterview = useCallback(async () => {
         setIsGeneratingFeedback(true);
         toast.info('Generating your feedback report...', {
@@ -361,6 +389,7 @@ export function useInterviewAudio({
         playResponse,
         startRecording,
         stopRecording,
+        submitTextResponse,
         endInterview,
         isProcessing: interviewState === 'processing',
     };

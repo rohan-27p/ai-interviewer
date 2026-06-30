@@ -3,6 +3,7 @@ import { InterviewState } from '@/lib/types';
 import { formatInterviewTypeDisplay } from '@/lib/interview-types';
 import { Mic, Square } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { FormEvent, useState } from 'react';
 
 interface InterviewerPanelProps {
     interviewType: string;
@@ -10,6 +11,7 @@ interface InterviewerPanelProps {
     isLoadingQuestion: boolean;
     onStartRecording: () => void;
     onStopRecording: () => void;
+    onSubmitText: (text: string) => Promise<void>;
 }
 
 export function InterviewerPanel({
@@ -18,9 +20,20 @@ export function InterviewerPanel({
     isLoadingQuestion,
     onStartRecording,
     onStopRecording,
+    onSubmitText,
 }: InterviewerPanelProps) {
+    const [textResponse, setTextResponse] = useState('');
     const isDisabled =
         interviewState === 'processing' || interviewState === 'speaking' || isLoadingQuestion;
+
+    const handleTextSubmit = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        const response = textResponse.trim();
+        if (!response || isDisabled || interviewState === 'listening') return;
+
+        await onSubmitText(response);
+        setTextResponse('');
+    };
 
     return (
         <div className="w-[300px] min-w-[260px] bg-card flex flex-col border-l border-border">
@@ -94,6 +107,28 @@ export function InterviewerPanel({
                         {interviewState === 'speaking' && 'Speaking...'}
                     </p>
                 </div>
+
+                <form onSubmit={handleTextSubmit} className="mt-5 w-full space-y-2">
+                    <label htmlFor="text-response" className="sr-only">
+                        Type your answer
+                    </label>
+                    <textarea
+                        id="text-response"
+                        value={textResponse}
+                        onChange={(event) => setTextResponse(event.target.value)}
+                        disabled={isDisabled || interviewState === 'listening'}
+                        placeholder="Or type your answer…"
+                        rows={3}
+                        className="w-full resize-none rounded-md border border-border bg-background p-2 text-xs outline-none placeholder:text-muted-foreground focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+                    />
+                    <button
+                        type="submit"
+                        disabled={!textResponse.trim() || isDisabled || interviewState === 'listening'}
+                        className="w-full rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        Send answer
+                    </button>
+                </form>
             </div>
         </div>
     );

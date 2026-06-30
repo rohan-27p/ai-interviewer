@@ -87,6 +87,7 @@ export default function InterviewPage({ params }: PageProps) {
                 isLoadingQuestion={question.isLoadingQuestion}
                 onStartRecording={audio.startRecording}
                 onStopRecording={audio.stopRecording}
+                onSubmitText={audio.submitTextResponse}
             />
 
             <EndInterviewModal
