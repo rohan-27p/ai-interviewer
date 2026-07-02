@@ -29,6 +29,10 @@ const NEXT_QUESTION_TRIGGERS = [
     'finished'
 ];
 
+const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
+const MAX_TEXT_RESPONSE_LENGTH = 10_000;
+const MAX_CODE_LENGTH = 50_000;
+
 export async function POST(req: Request) {
     const totalStart = Date.now();
 
@@ -54,6 +58,14 @@ export async function POST(req: Request) {
 
         if (!textResponse && !audioFile) {
             return NextResponse.json({ error: 'Missing audio or text response' }, { status: 400 });
+        }
+
+        if (textResponse.length > MAX_TEXT_RESPONSE_LENGTH) {
+            return NextResponse.json({ error: 'Text response is too long' }, { status: 413 });
+        }
+
+        if (audioFile && audioFile.size > MAX_AUDIO_BYTES) {
+            return NextResponse.json({ error: 'Audio recording must be 10 MB or smaller' }, { status: 413 });
         }
 
         //Fetch state from DATABASE, not client
@@ -87,6 +99,10 @@ export async function POST(req: Request) {
         const conversationHistory: Message[] = (session.messages as Message[] | null) ?? [];
         const maxQuestions = session.num_questions;
         const code = formData.get('code') as string || '';
+
+        if (code.length > MAX_CODE_LENGTH) {
+            return NextResponse.json({ error: 'Code submission is too long' }, { status: 413 });
+        }
 
         //Check question status from DB instead of index
         const { data: activeQuestion } = await supabase
@@ -166,8 +182,6 @@ export async function POST(req: Request) {
                 allowTextFallback: true,
             }, { status: 400 });
         }
-
-        console.log('User said:', userTranscript);
 
         //LLM: Groq (Llama 3.3) with STRUCTURED OUTPUT
         const { data: dbQuestion } = await supabase
@@ -286,11 +300,9 @@ REMEMBER: You are ONLY evaluating "${actualQuestionTitle}" with exactly ${maxFol
         }
 
         console.log(`⏱️ LLM: ${llmTime}ms`);
-        console.log('AI replied:', aiReply);
+        logger.info('llm_complete', { sessionId, ms: llmTime });
 
         const cleanReply = aiReply;
-
-        console.log('AI Status:', aiStatus);
 
         // INCREMENT FOLLOW-UP COUNT when AI continues discussion
         if (aiStatus === 'CONTINUE' && dbQuestion) {
@@ -301,7 +313,7 @@ REMEMBER: You are ONLY evaluating "${actualQuestionTitle}" with exactly ${maxFol
                 .eq('session_id', sessionId)
                 .eq('status', 'active');
 
-            console.log(`Follow-up count: ${newFollowupCount}/${maxFollowups}`);
+            logger.info('followup_count_updated', { sessionId, count: newFollowupCount, max: maxFollowups });
         }
 
         //fetch next question from DB
