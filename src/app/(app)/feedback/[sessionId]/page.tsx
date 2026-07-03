@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef, use } from 'react';
-import { useRouter } from 'next/navigation';
-import { ArrowLeft, Trophy, Target, MessageSquare, Lightbulb, TrendingUp, CheckCircle, AlertCircle, Download } from 'lucide-react';
+import { Target, MessageSquare, Lightbulb, TrendingUp, CheckCircle, AlertCircle, Download } from 'lucide-react';
 import Link from 'next/link';
 import { PageLoader } from '@/components/ui/PageLoader';
 import { Button } from '@/components/ui/Button';
@@ -23,6 +22,21 @@ interface SessionData {
     interview_type: string;
     difficulty: string;
     created_at: string;
+}
+
+function escapeHtml(value: unknown): string {
+    return String(value ?? '').replace(/[&<>'"]/g, (character) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        "'": '&#39;',
+        '"': '&quot;',
+    })[character] ?? character);
+}
+
+function normalizeScore(value: unknown): number {
+    const score = Number(value);
+    return Number.isFinite(score) ? Math.min(10, Math.max(0, score)) : 0;
 }
 
 function ScoreCircle({ score, label }: { score: number; label: string }) {
@@ -48,8 +62,6 @@ interface PageProps {
 
 export default function FeedbackPage({ params }: PageProps) {
     const { sessionId } = use(params);
-    const router = useRouter();
-
     const [feedback, setFeedback] = useState<FeedbackData | null>(null);
     const [session, setSession] = useState<SessionData | null>(null);
     const [loading, setLoading] = useState(true);
@@ -96,21 +108,29 @@ export default function FeedbackPage({ params }: PageProps) {
     const exportToPDF = async () => {
         if (!feedback) return;
         setIsExporting(true);
-        const overallScore = feedback.overallScore ?? 0;
-        const overallVerdict = feedback.overallVerdict ?? 'Pending';
+        const overallScore = normalizeScore(feedback.overallScore);
+        const overallVerdict = escapeHtml(feedback.overallVerdict || 'Pending');
         const technicalSkills = feedback.technicalSkills ?? { score: 0, feedback: '' };
         const problemSolving = feedback.problemSolving ?? { score: 0, feedback: '' };
         const communication = feedback.communication ?? { score: 0, feedback: '' };
+        const technicalScore = normalizeScore(technicalSkills.score);
+        const problemSolvingScore = normalizeScore(problemSolving.score);
+        const communicationScore = normalizeScore(communication.score);
+        const technicalFeedback = escapeHtml(technicalSkills.feedback);
+        const problemSolvingFeedback = escapeHtml(problemSolving.feedback);
+        const communicationFeedback = escapeHtml(communication.feedback);
         const strengths = feedback.strengths ?? [];
         const areasForImprovement = feedback.areasForImprovement ?? [];
         const recommendations = feedback.recommendations ?? [];
+        const safeSessionId = escapeHtml(sessionId);
+        const summary = escapeHtml(feedback.summary);
 
         const printContent = `
             <!DOCTYPE html>
             <html>
             <head>
                 <meta charset="UTF-8">
-                <title>Interview Feedback Report - ${sessionId}</title>
+                <title>Interview Feedback Report - ${safeSessionId}</title>
                 <style>
                     * { margin: 0; padding: 0; box-sizing: border-box; }
                     body { 
@@ -181,14 +201,14 @@ export default function FeedbackPage({ params }: PageProps) {
                 <div class="header">
                     <div class="logo">🎤 InterviewAI</div>
                     <div>Interview Feedback Report</div>
-                    <div class="uid">Session: ${sessionId} | Generated: ${new Date().toLocaleDateString()}</div>
+                    <div class="uid">Session: ${safeSessionId} | Generated: ${new Date().toLocaleDateString()}</div>
                 </div>
 
                 <div class="score-section">
                     <div class="main-score">${overallScore}</div>
                     <div>
                         <div class="verdict">${overallVerdict}</div>
-                        <p class="summary">${feedback.summary ?? ''}</p>
+                        <p class="summary">${summary}</p>
                     </div>
                 </div>
 
@@ -196,35 +216,35 @@ export default function FeedbackPage({ params }: PageProps) {
                 <div class="scores-grid">
                     <div class="score-card">
                         <h3>Technical Skills</h3>
-                        <div class="score" style="color: ${technicalSkills.score >= 8 ? '#22c55e' : technicalSkills.score >= 6 ? '#eab308' : '#ef4444'}">${technicalSkills.score}/10</div>
-                        <p>${technicalSkills.feedback}</p>
+                        <div class="score" style="color: ${technicalScore >= 8 ? '#22c55e' : technicalScore >= 6 ? '#eab308' : '#ef4444'}">${technicalScore}/10</div>
+                        <p>${technicalFeedback}</p>
                     </div>
                     <div class="score-card">
                         <h3>Problem Solving</h3>
-                        <div class="score" style="color: ${problemSolving.score >= 8 ? '#22c55e' : problemSolving.score >= 6 ? '#eab308' : '#ef4444'}">${problemSolving.score}/10</div>
-                        <p>${problemSolving.feedback}</p>
+                        <div class="score" style="color: ${problemSolvingScore >= 8 ? '#22c55e' : problemSolvingScore >= 6 ? '#eab308' : '#ef4444'}">${problemSolvingScore}/10</div>
+                        <p>${problemSolvingFeedback}</p>
                     </div>
                     <div class="score-card">
                         <h3>Communication</h3>
-                        <div class="score" style="color: ${communication.score >= 8 ? '#22c55e' : communication.score >= 6 ? '#eab308' : '#ef4444'}">${communication.score}/10</div>
-                        <p>${communication.feedback}</p>
+                        <div class="score" style="color: ${communicationScore >= 8 ? '#22c55e' : communicationScore >= 6 ? '#eab308' : '#ef4444'}">${communicationScore}/10</div>
+                        <p>${communicationFeedback}</p>
                     </div>
                 </div>
 
                 <div class="two-col">
                     <div class="list-section">
                         <h3>✅ Strengths</h3>
-                        <ul>${strengths.map(s => `<li>• ${s}</li>`).join('')}</ul>
+                        <ul>${strengths.map((strength) => `<li>• ${escapeHtml(strength)}</li>`).join('')}</ul>
                     </div>
                     <div class="list-section">
                         <h3>⚠️ Areas for Improvement</h3>
-                        <ul>${areasForImprovement.map(a => `<li>• ${a}</li>`).join('')}</ul>
+                        <ul>${areasForImprovement.map((area) => `<li>• ${escapeHtml(area)}</li>`).join('')}</ul>
                     </div>
                 </div>
 
                 <div class="list-section" style="background: #fff7ed; border: 1px solid #fed7aa;">
                     <h3 style="color: #f97316;">📈 Recommendations</h3>
-                    <ul>${recommendations.map((r, i) => `<li>${i + 1}. ${r}</li>`).join('')}</ul>
+                    <ul>${recommendations.map((recommendation, index) => `<li>${index + 1}. ${escapeHtml(recommendation)}</li>`).join('')}</ul>
                 </div>
 
                 <div class="footer">Generated by InterviewAI • Practice makes perfect! 🚀</div>
