@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Mail, Lock, User } from 'lucide-react';
+import { Mail, User } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { getAuthErrorMessage } from '@/lib/auth/errors';
 import { validateEmail, validatePassword } from '@/lib/auth/validation';

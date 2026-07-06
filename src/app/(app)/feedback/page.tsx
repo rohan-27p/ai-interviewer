@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Trophy, Target, Clock, TrendingUp, ChevronRight } from 'lucide-react';
@@ -29,17 +29,13 @@ interface FeedbackReport {
 
 export default function FeedbackListPage() {
     const router = useRouter();
-    const supabase = createClient();
+    const supabase = useMemo(() => createClient(), []);
 
     const [feedbackList, setFeedbackList] = useState<FeedbackReport[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        loadFeedback();
-    }, []);
-
-    const loadFeedback = async () => {
+    const loadFeedback = useCallback(async () => {
         setError(null);
         try {
             const { data: { user } } = await supabase.auth.getUser();
@@ -75,7 +71,11 @@ export default function FeedbackListPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [router, supabase]);
+
+    useEffect(() => {
+        loadFeedback();
+    }, [loadFeedback]);
 
     const formatDate = (dateStr: string) => {
         const date = new Date(dateStr);

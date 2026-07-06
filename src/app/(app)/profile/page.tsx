@@ -33,12 +33,6 @@ interface SessionRow {
     started_at: string;
 }
 
-interface ProfileRow {
-    full_name: string | null;
-    avatar_url: string | null;
-    created_at: string;
-}
-
 const TYPE_LABELS = INTERVIEW_TYPE_LABELS;
 
 const ACHIEVEMENTS = [

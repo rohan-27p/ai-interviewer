@@ -46,7 +46,7 @@ interface FeedbackReport {
 
 export default function DashboardPage() {
     const router = useRouter();
-    const supabase = createClient();
+    const supabase = useMemo(() => createClient(), []);
 
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [sessions, setSessions] = useState<InterviewSession[]>([]);
@@ -54,11 +54,7 @@ export default function DashboardPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        loadDashboardData();
-    }, []);
-
-    const loadDashboardData = async () => {
+    const loadDashboardData = useCallback(async () => {
         setError(null);
         try {
             const { data: { user } } = await supabase.auth.getUser();
@@ -142,7 +138,11 @@ export default function DashboardPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [router, supabase]);
+
+    useEffect(() => {
+        loadDashboardData();
+    }, [loadDashboardData]);
 
     if (loading) {
         return <PageLoader />;
