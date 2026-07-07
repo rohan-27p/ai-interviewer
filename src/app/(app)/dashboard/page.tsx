@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Trophy, Target, Clock, ArrowRight, TrendingUp, Star, Code2, Mic2 } from 'lucide-react';
