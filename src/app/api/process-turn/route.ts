@@ -1,6 +1,4 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@deepgram/sdk';
-import { Groq } from 'groq-sdk';
 import { Message, Question } from '@/lib/types';
 import { createClient as createSupabaseClient } from '@/lib/supabase/server';
 import { generateIntro } from '@/lib/ai/intro';
@@ -9,12 +7,10 @@ import { parseStructuredTurnResponse } from '@/lib/ai/turn-response';
 import { getSttLanguage } from '@/lib/stt';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
+import { getGroqClient } from '@/lib/ai/groq';
+import { getDeepgramClient } from '@/lib/ai/deepgram';
 
 export const maxDuration = 120;
-
-// Initialize Clients
-const deepgram = createClient(process.env.DEEPGRAM_API_KEY ?? '');
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const NEXT_QUESTION_TRIGGERS = [
     'next question',
@@ -153,6 +149,7 @@ export async function POST(req: Request) {
             const sttStart = Date.now();
             const audioBuffer = Buffer.from(await audioFile.arrayBuffer());
             const voiceId = session.voice_id || 'en-US-matthew';
+            const deepgram = getDeepgramClient();
 
             const { result, error } = await deepgram.listen.prerecorded.transcribeFile(
                 audioBuffer,
@@ -279,6 +276,7 @@ REMEMBER: You are ONLY evaluating "${actualQuestionTitle}" with exactly ${maxFol
         let llmTime = 0;
 
         try {
+            const groq = getGroqClient();
             const completion = await groq.chat.completions.create({
                 messages: messages as Message[],
                 model: 'llama-3.3-70b-versatile',

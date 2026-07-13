@@ -1,8 +1,6 @@
 import { Question } from '@/lib/types';
-import { Groq } from 'groq-sdk';
 import { synthesizeSpeech } from '@/lib/ai/tts';
-
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+import { getGroqClient } from '@/lib/ai/groq';
 
 function getIntroPrompt(interviewType: string, isFirstQuestion: boolean): string {
     const subsequentPrompt = `You are continuing a technical interview. Generate a BRIEF transition to the next question.
@@ -63,6 +61,7 @@ export async function generateIntro(
     let introText = '';
 
     try {
+        const groq = getGroqClient();
         const completion = await groq.chat.completions.create({
             messages: [
                 {

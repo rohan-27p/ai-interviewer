@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
-import { Groq } from 'groq-sdk';
 import { createClient } from '@/lib/supabase/server';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
-
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+import { getGroqClient } from '@/lib/ai/groq';
 
 interface QuestionGenerationParams {
     interviewType: string;
@@ -357,6 +355,7 @@ Return format:
     try {
         console.log(`Calling LLM to generate ${count} unique ${interviewType} questions...`);
 
+        const groq = getGroqClient();
         const completion = await groq.chat.completions.create({
             messages: [
                 { role: 'system', content: systemPrompt },

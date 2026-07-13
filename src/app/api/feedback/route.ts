@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
-import { Groq } from 'groq-sdk';
 import { createClient } from '@/lib/supabase/server';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
-
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+import { getGroqClient } from '@/lib/ai/groq';
 
 export const maxDuration = 120;
 
@@ -52,7 +50,6 @@ export async function POST(req: Request) {
 
         // Format the conversation for the LLM - filter and format properly
         const userMessages = messages.filter((m: { role: string }) => m.role === 'user');
-        const assistantMessages = messages.filter((m: { role: string }) => m.role === 'assistant');
 
         const conversationSummary = messages
             .filter((m: { role: string }) => m.role !== 'system')
@@ -68,6 +65,7 @@ export async function POST(req: Request) {
         console.log('Conversation summary length:', conversationSummary.length);
 
         // Generate detailed feedback using Groq
+        const groq = getGroqClient();
         const completion = await groq.chat.completions.create({
             messages: [
                 {
