@@ -44,6 +44,10 @@ function getMicrophoneErrorMessage(error: unknown): string {
             return 'Your microphone is already in use by another app. Close it, then try again.';
         }
 
+        if (error.name === 'AbortError') {
+            return 'Microphone setup was interrupted. Please try again.';
+        }
+
         if (error.name === 'NotSupportedError') {
             return 'This browser cannot record microphone audio here. Try Chrome or check that the page is using HTTPS.';
         }
@@ -310,8 +314,10 @@ export function useInterviewAudio({
     }, [code, currentQuestion, handleTurnResult, previousQuestions, sessionId, submitTurn]);
 
     const stopRecording = useCallback(() => {
-        if (mediaRecorderRef.current && interviewState === 'listening') {
-            mediaRecorderRef.current.stop();
+        const recorder = mediaRecorderRef.current;
+        if (recorder && recorder.state !== 'inactive' && interviewState === 'listening') {
+            setInterviewState('processing');
+            recorder.stop();
         }
     }, [interviewState]);
 
