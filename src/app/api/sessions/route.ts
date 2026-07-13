@@ -19,6 +19,14 @@ interface GeneratedQuestionPayload {
 
 type SessionUpdate = Database['public']['Tables']['interview_sessions']['Update'];
 type QuestionInsert = Database['public']['Tables']['interview_questions']['Insert'];
+type InterviewType = Database['public']['Tables']['interview_sessions']['Row']['interview_type'];
+type Difficulty = Database['public']['Tables']['interview_sessions']['Row']['difficulty'];
+
+const INTERVIEW_TYPES = new Set(['DSA', 'Frontend', 'Backend', 'Fullstack', 'Cybersecurity', 'DevOps']);
+const DIFFICULTIES = new Set(['Easy', 'Medium', 'Hard']);
+const MAX_TOPICS = 12;
+const MAX_TOPIC_LENGTH = 100;
+const MAX_VOICE_ID_LENGTH = 100;
 
 function normalizeDifficulty(value: string): 'Easy' | 'Medium' | 'Hard' {
     const lower = value.toLowerCase();
@@ -101,22 +109,40 @@ export async function POST(req: Request) {
             return rateLimitResponse(rate.retryAfterMs ?? 60_000);
         }
 
-        const body = await req.json();
-        const { interview_type, difficulty, topics, num_questions, voice_id } = body;
-
-        if (!interview_type || !difficulty || !topics || !num_questions) {
-            return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        const body: unknown = await req.json();
+        if (!body || typeof body !== 'object') {
+            return NextResponse.json({ error: 'Invalid session configuration' }, { status: 400 });
         }
 
-        const resolvedVoiceId = voice_id || 'en-US-matthew';
+        const { interview_type, difficulty, topics, num_questions, voice_id } = body as Record<string, unknown>;
+
+        if (!INTERVIEW_TYPES.has(String(interview_type)) || !DIFFICULTIES.has(String(difficulty))) {
+            return NextResponse.json({ error: 'Invalid interview type or difficulty' }, { status: 400 });
+        }
+
+        if (!Array.isArray(topics) || topics.length === 0 || topics.length > MAX_TOPICS ||
+            topics.some((topic) => typeof topic !== 'string' || !topic.trim() || topic.length > MAX_TOPIC_LENGTH)) {
+            return NextResponse.json({ error: 'Topics must contain between 1 and 12 valid values' }, { status: 400 });
+        }
+
+        if (typeof num_questions !== 'number' || !Number.isInteger(num_questions) || num_questions < 1 || num_questions > 10) {
+            return NextResponse.json({ error: 'Question count must be between 1 and 10' }, { status: 400 });
+        }
+
+        if (voice_id !== undefined && (typeof voice_id !== 'string' || !voice_id.trim() || voice_id.length > MAX_VOICE_ID_LENGTH)) {
+            return NextResponse.json({ error: 'Invalid voice selection' }, { status: 400 });
+        }
+
+        const validatedTopics = topics as string[];
+        const resolvedVoiceId = typeof voice_id === 'string' ? voice_id : 'en-US-matthew';
 
         const { data: session, error } = await supabase
             .from('interview_sessions')
             .insert({
                 user_id: user.id,
-                interview_type,
-                difficulty,
-                topics,
+                interview_type: interview_type as InterviewType,
+                difficulty: difficulty as Difficulty,
+                topics: validatedTopics.map((topic) => topic.trim()),
                 num_questions,
                 voice_id: resolvedVoiceId,
                 status: 'active',
@@ -135,9 +161,9 @@ export async function POST(req: Request) {
             persistQuestionsForSession(
                 supabase,
                 session.id,
-                interview_type,
-                difficulty,
-                topics,
+                String(interview_type),
+                String(difficulty),
+                validatedTopics.map((topic) => topic.trim()),
                 num_questions,
                 resolvedVoiceId
             )
