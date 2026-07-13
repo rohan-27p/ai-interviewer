@@ -32,7 +32,7 @@ export function useInterviewQuestion({
     const isFirstQuestion = useRef(true);
     const hasFetchedInitial = useRef(false);
 
-    const fetchQuestion = useCallback(async () => {
+    const fetchQuestion = useCallback(async (): Promise<boolean> => {
         setIsLoadingQuestion(true);
         try {
             const response = await fetch(`/api/questions?sessionId=${sessionId}&status=active`);
@@ -47,18 +47,39 @@ export function useInterviewQuestion({
                     constraints: question.constraints || [],
                     examples: question.examples || [],
                 });
+                return true;
             }
         } catch (error) {
             console.error('Error fetching question:', error);
         } finally {
             setIsLoadingQuestion(false);
         }
+
+        return false;
     }, [sessionId]);
 
     useEffect(() => {
         if (!isConfigLoaded || hasFetchedInitial.current) return;
         hasFetchedInitial.current = true;
-        fetchQuestion();
+
+        let cancelled = false;
+        let retryTimer: ReturnType<typeof setTimeout> | undefined;
+        let attempts = 0;
+
+        const loadInitialQuestion = async () => {
+            const found = await fetchQuestion();
+            if (found || cancelled || attempts >= 14) return;
+
+            attempts += 1;
+            retryTimer = setTimeout(loadInitialQuestion, 2_000);
+        };
+
+        loadInitialQuestion();
+
+        return () => {
+            cancelled = true;
+            if (retryTimer) clearTimeout(retryTimer);
+        };
     }, [isConfigLoaded, fetchQuestion]);
 
     useEffect(() => {
