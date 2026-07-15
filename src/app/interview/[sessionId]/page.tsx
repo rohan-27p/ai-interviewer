@@ -21,6 +21,9 @@ export default function InterviewPage({ params }: PageProps) {
     const [messages, setMessages] = useState<Message[]>([]);
     const [code, setCode] = useState<string>('# Write your solution here\n\n');
     const [endModal, setEndModal] = useState<'end' | 'complete' | null>(null);
+    const latestInterviewerResponse = [...messages]
+        .reverse()
+        .find((message) => message.role === 'assistant')?.content ?? null;
 
     const playIntroRef = useRef<(question: Question, retryCount?: number) => Promise<void>>(
         () => Promise.resolve()
@@ -84,6 +87,7 @@ export default function InterviewPage({ params }: PageProps) {
                 interviewType={config.type}
                 interviewState={audio.interviewState}
                 isLoadingQuestion={question.isLoadingQuestion}
+                latestResponse={latestInterviewerResponse}
                 onStartRecording={audio.startRecording}
                 onStopRecording={audio.stopRecording}
                 onSubmitText={audio.submitTextResponse}

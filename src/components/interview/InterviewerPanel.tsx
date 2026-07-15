@@ -9,6 +9,7 @@ interface InterviewerPanelProps {
     interviewType: string;
     interviewState: InterviewState;
     isLoadingQuestion: boolean;
+    latestResponse: string | null;
     onStartRecording: () => void;
     onStopRecording: () => void;
     onSubmitText: (text: string) => Promise<void>;
@@ -18,6 +19,7 @@ export function InterviewerPanel({
     interviewType,
     interviewState,
     isLoadingQuestion,
+    latestResponse,
     onStartRecording,
     onStopRecording,
     onSubmitText,
@@ -131,6 +133,15 @@ export function InterviewerPanel({
                         Send answer
                     </button>
                 </form>
+
+                {latestResponse && (
+                    <div className="mt-4 w-full rounded-md border border-border bg-background p-3 text-xs">
+                        <p className="mb-1 font-semibold text-foreground">AI response</p>
+                        <p className="max-h-28 overflow-y-auto whitespace-pre-wrap text-muted-foreground" aria-live="polite">
+                            {latestResponse}
+                        </p>
+                    </div>
+                )}
             </div>
         </div>
     );

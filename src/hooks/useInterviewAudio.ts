@@ -74,6 +74,16 @@ export function useInterviewAudio({
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const messagesRef = useRef(messages);
+    const hasShownAudioFallbackNotice = useRef(false);
+
+    const notifyAudioFallback = useCallback(() => {
+        if (hasShownAudioFallbackNotice.current) return;
+        hasShownAudioFallbackNotice.current = true;
+        toast.info('Audio playback was blocked by the browser. Read the interviewer response on screen.', {
+            position: 'top-center',
+            autoClose: 5000,
+        });
+    }, []);
 
     useEffect(() => {
         messagesRef.current = messages;
@@ -105,11 +115,13 @@ export function useInterviewAudio({
                 player.onended = onEnded;
                 player.onerror = () => {
                     console.error('Audio playback error');
+                    notifyAudioFallback();
                     setInterviewState('idle');
                 };
                 setInterviewState('speaking');
                 await player.play().catch((err) => {
                     console.error('Play error:', err);
+                    notifyAudioFallback();
                     setInterviewState('idle');
                 });
                 return;
@@ -133,6 +145,7 @@ export function useInterviewAudio({
                     );
                 } catch (error) {
                     console.error('Streaming TTS error:', error);
+                    notifyAudioFallback();
                     setInterviewState('idle');
                 }
                 return;
@@ -140,7 +153,7 @@ export function useInterviewAudio({
 
             setInterviewState('idle');
         },
-        [config.voiceId]
+        [config.voiceId, notifyAudioFallback]
     );
 
     const playIntro = useCallback(
