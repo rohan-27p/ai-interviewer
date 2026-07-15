@@ -59,6 +59,18 @@ describe('structured turn response', () => {
         expect(result.status).toBe('COMPLETE');
         expect(result.reply).toBe('Nice work.');
     });
+
+    it('parses JSON wrapped in a code fence', () => {
+        const result = parseStructuredTurnResponse('```json\n{"reply":"Let us continue.","status":"CONTINUE"}\n```');
+        expect(result).toEqual({ reply: 'Let us continue.', status: 'CONTINUE' });
+    });
+
+    it('uses a safe prompt when JSON omits the reply', () => {
+        const result = parseStructuredTurnResponse('{"status":"COMPLETE"}');
+        expect(result.status).toBe('COMPLETE');
+        expect(result.reply).not.toContain('status');
+        expect(result.reply.length).toBeGreaterThan(0);
+    });
 });
 
 describe('feedback utils', () => {
