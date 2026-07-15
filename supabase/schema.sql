@@ -104,6 +104,28 @@ CREATE INDEX IF NOT EXISTS idx_interview_sessions_status_created
   ON public.interview_sessions (status, created_at)
   WHERE status = 'active';
 
+-- Keep activity timestamps reliable for cleanup and dashboard ordering.
+CREATE OR REPLACE FUNCTION public.set_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS set_interview_sessions_updated_at ON public.interview_sessions;
+CREATE TRIGGER set_interview_sessions_updated_at
+  BEFORE UPDATE ON public.interview_sessions
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+DROP TRIGGER IF EXISTS set_user_profiles_updated_at ON public.user_profiles;
+CREATE TRIGGER set_user_profiles_updated_at
+  BEFORE UPDATE ON public.user_profiles
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
 -- ============================================================
 -- INTERVIEW QUESTIONS
 -- ============================================================

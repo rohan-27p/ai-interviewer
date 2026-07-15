@@ -201,7 +201,7 @@ IMPORTANT: Carefully read the CANDIDATE's responses above. If they provided deta
             // Update session status to completed
             await supabase
                 .from('interview_sessions')
-                .update({ status: 'completed' })
+                .update({ status: 'completed', updated_at: new Date().toISOString() })
                 .eq('id', sessionId)
                 .eq('user_id', user.id);
 

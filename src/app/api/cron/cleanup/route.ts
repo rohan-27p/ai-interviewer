@@ -47,6 +47,7 @@ export async function GET(req: Request) {
         .update({
             status: 'abandoned',
             completed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
         })
         .in('id', sessionIds);
 

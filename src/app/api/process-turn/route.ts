@@ -394,6 +394,7 @@ REMEMBER: You are ONLY evaluating "${actualQuestionTitle}" with exactly ${maxFol
                     .update({
                         messages: earlyMessages,
                         current_question_index: currentQuestionIndex + 1,
+                        updated_at: new Date().toISOString(),
                     })
                     .eq('id', sessionId)
                     .eq('user_id', user.id);
@@ -465,7 +466,8 @@ REMEMBER: You are ONLY evaluating "${actualQuestionTitle}" with exactly ${maxFol
             .from('interview_sessions')
             .update({
                 messages: updatedMessages,
-                current_question_index: newQuestion ? currentQuestionIndex + 1 : currentQuestionIndex
+                current_question_index: newQuestion ? currentQuestionIndex + 1 : currentQuestionIndex,
+                updated_at: new Date().toISOString(),
             })
             .eq('id', sessionId)
             .eq('user_id', user.id);

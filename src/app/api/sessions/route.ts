@@ -88,6 +88,7 @@ async function persistQuestionsForSession(
             .from('interview_sessions')
             .update({
                 messages: [{ role: 'assistant', content: intro.introText }],
+                updated_at: new Date().toISOString(),
             })
             .eq('id', sessionId);
     } catch (error) {
@@ -238,6 +239,7 @@ export async function PATCH(req: Request) {
         if (messages !== undefined) updateData.messages = messages;
         if (status !== undefined) updateData.status = status;
         if (currentQuestionIndex !== undefined) updateData.current_question_index = currentQuestionIndex;
+        updateData.updated_at = new Date().toISOString();
 
         const { data: session, error } = await supabase
             .from('interview_sessions')

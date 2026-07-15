@@ -81,7 +81,8 @@ export async function PATCH(request: Request, { params }: RouteParams) {
             .from('interview_sessions')
             .update({
                 status,
-                completed_at: status !== 'active' ? new Date().toISOString() : null
+                completed_at: status !== 'active' ? new Date().toISOString() : null,
+                updated_at: new Date().toISOString(),
             })
             .eq('id', sessionId)
             .eq('user_id', user.id)
