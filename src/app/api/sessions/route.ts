@@ -67,13 +67,6 @@ async function persistQuestionsForSession(
             status: index === 0 ? 'active' : 'pending',
         }));
 
-        const { error: insertError } = await supabase.from('interview_questions').insert(questionInserts);
-
-        if (insertError) {
-            console.error('Error inserting questions:', insertError);
-            return;
-        }
-
         const firstQuestion: Question = {
             title: questions[0].title,
             description: questions[0].description,
@@ -84,13 +77,24 @@ async function persistQuestionsForSession(
 
         const intro = await generateIntro(firstQuestion, interview_type, true, voice_id);
 
-        await supabase
+        const { error: introSaveError } = await supabase
             .from('interview_sessions')
             .update({
                 messages: [{ role: 'assistant', content: intro.introText }],
                 updated_at: new Date().toISOString(),
             })
             .eq('id', sessionId);
+
+        if (introSaveError) {
+            console.error('Error saving interview intro:', introSaveError);
+            return;
+        }
+
+        const { error: insertError } = await supabase.from('interview_questions').insert(questionInserts);
+
+        if (insertError) {
+            console.error('Error inserting questions:', insertError);
+        }
     } catch (error) {
         console.error('Background question generation error:', error);
     }

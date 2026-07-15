@@ -1,10 +1,25 @@
 import { NextResponse } from 'next/server';
 import { Question } from '@/lib/types';
 import { generateIntro } from '@/lib/ai/intro';
+import { synthesizeSpeech } from '@/lib/ai/tts';
 import { createClient } from '@/lib/supabase/server';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 
 export const maxDuration = 60;
+
+function getStoredIntro(messages: unknown): string | null {
+    if (!Array.isArray(messages)) return null;
+
+    for (const message of messages) {
+        if (!message || typeof message !== 'object') continue;
+        const entry = message as Record<string, unknown>;
+        if (entry.role === 'assistant' && typeof entry.content === 'string' && entry.content.trim()) {
+            return entry.content;
+        }
+    }
+
+    return null;
+}
 
 export async function POST(req: Request) {
     try {
@@ -31,7 +46,7 @@ export async function POST(req: Request) {
 
         const { data: session, error: sessionError } = await supabase
             .from('interview_sessions')
-            .select('id, interview_type, voice_id, status')
+            .select('id, interview_type, voice_id, status, messages')
             .eq('id', sessionId)
             .eq('user_id', user.id)
             .single();
@@ -55,6 +70,16 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Active question not found' }, { status: 404 });
         }
 
+        const voiceId = session.voice_id || 'en-US-matthew';
+        const storedIntro = getStoredIntro(session.messages);
+        if (storedIntro) {
+            return NextResponse.json({
+                introText: storedIntro,
+                audioBase64: await synthesizeSpeech(storedIntro, voiceId),
+                reused: true,
+            });
+        }
+
         const question: Question = {
             title: activeQuestion.question_title,
             description: activeQuestion.question_description,
@@ -66,7 +91,7 @@ export async function POST(req: Request) {
             question,
             session.interview_type,
             true,
-            session.voice_id || 'en-US-matthew'
+            voiceId
         );
 
         return NextResponse.json({
