@@ -342,7 +342,9 @@ REMEMBER: You are ONLY evaluating "${actualQuestionTitle}" with exactly ${maxFol
                     .update({
                         status: 'completed',
                         completed_at: new Date().toISOString(),
-                        user_answer: conversationHistory.map((m: Message) => m.content).join('\n')
+                        user_answer: [...conversationHistory, { role: 'user', content: userTranscript }]
+                            .map((message) => message.content)
+                            .join('\n')
                     })
                     .eq('id', currentQ.id);
             }
@@ -426,7 +428,9 @@ REMEMBER: You are ONLY evaluating "${actualQuestionTitle}" with exactly ${maxFol
                     .update({
                         status: 'completed',
                         completed_at: new Date().toISOString(),
-                        user_answer: conversationHistory.map((m: Message) => m.content).join('\n')
+                        user_answer: [...conversationHistory, { role: 'user', content: userTranscript }]
+                            .map((message) => message.content)
+                            .join('\n')
                     })
                     .eq('id', finalQ.id);
             }

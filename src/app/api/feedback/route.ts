@@ -58,12 +58,12 @@ export async function POST(req: Request) {
 
         const messages = (sessionRow.messages as { role: string; content: string }[] | null) ?? [];
 
-        if (!messages || messages.length === 0) {
-            return NextResponse.json({ error: 'No interview history provided' }, { status: 400 });
-        }
-
         // Format the conversation for the LLM - filter and format properly
         const userMessages = messages.filter((m: { role: string }) => m.role === 'user');
+
+        if (userMessages.length === 0) {
+            return NextResponse.json({ error: 'Submit at least one answer before generating feedback' }, { status: 400 });
+        }
 
         const conversationSummary = messages
             .filter((m: { role: string }) => m.role !== 'system')
@@ -80,8 +80,7 @@ export async function POST(req: Request) {
             .order('question_order', { ascending: true });
         const questionsList = questions?.map((question) => question.question_title).join(', ') || 'Technical questions';
 
-        console.log(`Generating feedback for ${userMessages.length} user responses, ${messages.length} total messages`);
-        console.log('Conversation summary length:', conversationSummary.length);
+        console.log(`Generating feedback for ${userMessages.length} user responses`);
 
         // Generate detailed feedback using Groq
         const groq = getGroqClient();
@@ -156,7 +155,7 @@ IMPORTANT: Carefully read the CANDIDATE's responses above. If they provided deta
             const cleanedText = feedbackText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
             feedback = JSON.parse(cleanedText);
         } catch {
-            console.error('Failed to parse feedback JSON:', feedbackText);
+            console.error('Failed to parse feedback JSON');
             feedback = {
                 overallScore: 6,
                 overallVerdict: 'Lean Hire',

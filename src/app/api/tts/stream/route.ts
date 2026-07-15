@@ -3,6 +3,9 @@ import { createClient as createSupabaseClient } from '@/lib/supabase/server';
 import { fetchSpeechStream } from '@/lib/ai/tts';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 
+const MAX_TTS_TEXT_LENGTH = 2_000;
+const MAX_VOICE_ID_LENGTH = 100;
+
 export async function POST(req: Request) {
     try {
         const supabase = await createSupabaseClient();
@@ -17,10 +20,21 @@ export async function POST(req: Request) {
             return rateLimitResponse(rate.retryAfterMs ?? 60_000);
         }
 
-        const { text, voiceId = 'en-US-matthew' } = await req.json();
+        const body: unknown = await req.json();
+        const text = body && typeof body === 'object' ? (body as Record<string, unknown>).text : undefined;
+        const requestedVoiceId = body && typeof body === 'object' ? (body as Record<string, unknown>).voiceId : undefined;
+        const voiceId = typeof requestedVoiceId === 'string' ? requestedVoiceId : 'en-US-matthew';
 
-        if (!text?.trim()) {
+        if (typeof text !== 'string' || !text.trim()) {
             return NextResponse.json({ error: 'Text is required' }, { status: 400 });
+        }
+
+        if (text.length > MAX_TTS_TEXT_LENGTH) {
+            return NextResponse.json({ error: 'Text is too long for speech synthesis' }, { status: 413 });
+        }
+
+        if (!voiceId.trim() || voiceId.length > MAX_VOICE_ID_LENGTH) {
+            return NextResponse.json({ error: 'Invalid voice selection' }, { status: 400 });
         }
 
         const murfResponse = await fetchSpeechStream(text, voiceId);

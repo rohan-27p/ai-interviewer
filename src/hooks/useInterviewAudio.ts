@@ -14,7 +14,6 @@ interface UseInterviewAudioOptions {
     messages: Message[];
     setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
     currentQuestion: Question | null;
-    previousQuestions: string[];
     setPreviousQuestions: React.Dispatch<React.SetStateAction<string[]>>;
     setCurrentQuestion: React.Dispatch<React.SetStateAction<Question | null>>;
     setQuestionsAnswered: React.Dispatch<React.SetStateAction<number>>;
@@ -63,7 +62,6 @@ export function useInterviewAudio({
     messages,
     setMessages,
     currentQuestion,
-    previousQuestions,
     setPreviousQuestions,
     setCurrentQuestion,
     setQuestionsAnswered,
@@ -153,9 +151,7 @@ export function useInterviewAudio({
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        question,
-                        interviewType: config.type,
-                        voiceId: config.voiceId,
+                        sessionId,
                     }),
                 });
 
@@ -184,7 +180,7 @@ export function useInterviewAudio({
                 }
             }
         },
-        [config.type, config.voiceId, playResponse, setMessages]
+        [playResponse, sessionId, setMessages]
     );
 
     const submitTurn = useCallback(async (formData: FormData) => {
@@ -245,7 +241,13 @@ export function useInterviewAudio({
                 throw new DOMException('Microphone capture is unavailable', 'NotSupportedError');
             }
 
-            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    autoGainControl: true,
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                },
+            });
             const activeStream = stream;
             if (typeof MediaRecorder === 'undefined') {
                 throw new DOMException('MediaRecorder is unavailable', 'NotSupportedError');
@@ -284,8 +286,6 @@ export function useInterviewAudio({
                 formData.append('audio', audio, `response.${mimeType.includes('mp4') ? 'mp4' : 'webm'}`);
                 formData.append('sessionId', sessionId);
                 formData.append('code', code);
-                formData.append('currentQuestionTitle', currentQuestion?.title || '');
-                formData.append('previousQuestions', JSON.stringify(previousQuestions));
 
                 try {
                     const data = await submitTurn(formData);
@@ -300,7 +300,8 @@ export function useInterviewAudio({
                 }
             };
 
-            mediaRecorder.start();
+            // Periodic chunks avoid browser-specific recorder buffering problems on long answers.
+            mediaRecorder.start(1_000);
             setInterviewState('listening');
         } catch (err) {
             console.error('Error accessing microphone:', err);
@@ -311,7 +312,7 @@ export function useInterviewAudio({
                 autoClose: 7000,
             });
         }
-    }, [code, currentQuestion, handleTurnResult, previousQuestions, sessionId, submitTurn]);
+    }, [code, handleTurnResult, sessionId, submitTurn]);
 
     const stopRecording = useCallback(() => {
         const recorder = mediaRecorderRef.current;
@@ -331,8 +332,6 @@ export function useInterviewAudio({
             formData.append('textResponse', transcript);
             formData.append('sessionId', sessionId);
             formData.append('code', code);
-            formData.append('currentQuestionTitle', currentQuestion?.title || '');
-            formData.append('previousQuestions', JSON.stringify(previousQuestions));
 
             try {
                 const data = await submitTurn(formData);
@@ -346,7 +345,7 @@ export function useInterviewAudio({
                 );
             }
         },
-        [code, currentQuestion, handleTurnResult, interviewState, previousQuestions, sessionId, submitTurn]
+        [code, handleTurnResult, interviewState, sessionId, submitTurn]
     );
 
     const endInterview = useCallback(async () => {
@@ -360,21 +359,10 @@ export function useInterviewAudio({
             const response = await fetch('/api/feedback', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    messages: messagesRef.current,
-                    questions: [currentQuestion?.title, ...previousQuestions].filter(Boolean),
-                    interviewType: config.type,
-                    sessionId,
-                }),
+                body: JSON.stringify({ sessionId }),
             });
 
             if (!response.ok) throw new Error('Failed to generate feedback');
-
-            await fetch(`/api/sessions/${sessionId}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: 'completed' }),
-            });
 
             localStorage.removeItem(`interview_lock_${sessionId}`);
             router.replace(`/feedback/${sessionId}`);
@@ -386,7 +374,7 @@ export function useInterviewAudio({
             });
             setIsGeneratingFeedback(false);
         }
-    }, [sessionId, config.type, currentQuestion, previousQuestions, router]);
+    }, [sessionId, router]);
 
     return {
         interviewState,

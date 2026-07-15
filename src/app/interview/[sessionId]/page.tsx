@@ -45,7 +45,6 @@ export default function InterviewPage({ params }: PageProps) {
         messages,
         setMessages,
         currentQuestion: question.currentQuestion,
-        previousQuestions: question.previousQuestions,
         setPreviousQuestions: question.setPreviousQuestions,
         setCurrentQuestion: question.setCurrentQuestion,
         setQuestionsAnswered: question.setQuestionsAnswered,
