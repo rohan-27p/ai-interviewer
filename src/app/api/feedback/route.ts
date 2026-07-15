@@ -21,32 +21,46 @@ export async function POST(req: Request) {
             return rateLimitResponse(rate.retryAfterMs ?? 60_000);
         }
 
-        const body = await req.json();
-        const { messages: clientMessages, questions, sessionId } = body;
+        const body: unknown = await req.json();
+        const sessionId = body && typeof body === 'object'
+            ? (body as Record<string, unknown>).sessionId
+            : undefined;
 
-        let messages = clientMessages;
-
-        if (sessionId) {
-            const { data: sessionRow } = await supabase
-                .from('interview_sessions')
-                .select('messages')
-                .eq('id', sessionId)
-                .eq('user_id', user.id)
-                .single();
-
-            const dbMessages = (sessionRow?.messages as { role: string; content: string }[] | null) ?? [];
-            if (dbMessages.length > 0) {
-                messages = dbMessages;
-            }
+        if (typeof sessionId !== 'string' || !sessionId) {
+            return NextResponse.json({ error: 'Session ID is required' }, { status: 400 });
         }
+
+        const { data: existingReport } = await supabase
+            .from('feedback_reports')
+            .select('id, full_feedback_json')
+            .eq('session_id', sessionId)
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+        if (existingReport) {
+            return NextResponse.json({
+                feedback: existingReport.full_feedback_json,
+                feedbackId: existingReport.id,
+                timestamp: new Date().toISOString(),
+            });
+        }
+
+        const { data: sessionRow, error: sessionError } = await supabase
+            .from('interview_sessions')
+            .select('messages')
+            .eq('id', sessionId)
+            .eq('user_id', user.id)
+            .single();
+
+        if (sessionError || !sessionRow) {
+            return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+        }
+
+        const messages = (sessionRow.messages as { role: string; content: string }[] | null) ?? [];
 
         if (!messages || messages.length === 0) {
             return NextResponse.json({ error: 'No interview history provided' }, { status: 400 });
         }
-
-        // SessionId is optional for backward compatibility
-        // If not provided, we'll create a temporary one or skip database save
-        const shouldSaveToDatabase = !!sessionId;
 
         // Format the conversation for the LLM - filter and format properly
         const userMessages = messages.filter((m: { role: string }) => m.role === 'user');
@@ -59,7 +73,12 @@ export async function POST(req: Request) {
             })
             .join('\n\n');
 
-        const questionsList = questions?.join(', ') || 'Technical questions';
+        const { data: questions } = await supabase
+            .from('interview_questions')
+            .select('question_title')
+            .eq('session_id', sessionId)
+            .order('question_order', { ascending: true });
+        const questionsList = questions?.map((question) => question.question_title).join(', ') || 'Technical questions';
 
         console.log(`Generating feedback for ${userMessages.length} user responses, ${messages.length} total messages`);
         console.log('Conversation summary length:', conversationSummary.length);
@@ -151,13 +170,11 @@ IMPORTANT: Carefully read the CANDIDATE's responses above. If they provided deta
             };
         }
 
-        // Only save to database if sessionId is provided
-        if (shouldSaveToDatabase && sessionId) {
-            try {
-                // Save feedback to database
-                const { data: feedbackReport, error: feedbackError } = await supabase
-                    .from('feedback_reports')
-                    .insert({
+        try {
+            // Save feedback to database
+            const { data: feedbackReport, error: feedbackError } = await supabase
+                .from('feedback_reports')
+                .insert({
                         user_id: user.id,
                         session_id: sessionId,
                         overall_score: feedback.overallScore,
@@ -173,40 +190,31 @@ IMPORTANT: Carefully read the CANDIDATE's responses above. If they provided deta
                         communication_score: feedback.communication?.score,
                         communication_feedback: feedback.communication?.feedback,
                         full_feedback_json: feedback,
-                    })
-                    .select()
-                    .single();
+                })
+                .select()
+                .single();
 
-                if (feedbackError) {
-                    console.error('Error saving feedback:', feedbackError);
-                    // Don't fail the request, just log the error and continue
-                } else {
-                    // Update session status to completed
-                    await supabase
-                        .from('interview_sessions')
-                        .update({ status: 'completed' })
-                        .eq('id', sessionId)
-                        .eq('user_id', user.id);
-
-                    return NextResponse.json({
-                        feedback,
-                        feedbackId: feedbackReport.id,
-                        timestamp: new Date().toISOString()
-                    });
-                }
-            } catch (dbError) {
-                console.error('Database save error:', dbError);
-                // Continue to return feedback even if DB save fails
+            if (feedbackError) {
+                console.error('Error saving feedback:', feedbackError);
+                return NextResponse.json({ error: 'Failed to save feedback' }, { status: 500 });
             }
-        }
 
-        // Return feedback without database save (backward compatibility)
-        const uid = `fb_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-        return NextResponse.json({
-            uid,
-            feedback,
-            timestamp: new Date().toISOString()
-        });
+            // Update session status to completed
+            await supabase
+                .from('interview_sessions')
+                .update({ status: 'completed' })
+                .eq('id', sessionId)
+                .eq('user_id', user.id);
+
+            return NextResponse.json({
+                feedback,
+                feedbackId: feedbackReport.id,
+                timestamp: new Date().toISOString(),
+            });
+        } catch (dbError) {
+            console.error('Database save error:', dbError);
+            return NextResponse.json({ error: 'Failed to save feedback' }, { status: 500 });
+        }
 
     } catch (error) {
         console.error('Feedback Generation Error:', error);
