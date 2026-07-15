@@ -16,8 +16,6 @@ interface GeneratedQuestionPayload {
     examples?: unknown[];
     followup_guidelines?: string[];
 }
-
-type SessionUpdate = Database['public']['Tables']['interview_sessions']['Update'];
 type QuestionInsert = Database['public']['Tables']['interview_questions']['Insert'];
 type InterviewType = Database['public']['Tables']['interview_sessions']['Row']['interview_type'];
 type Difficulty = Database['public']['Tables']['interview_sessions']['Row']['difficulty'];
@@ -34,7 +32,6 @@ function normalizeDifficulty(value: string): 'Easy' | 'Medium' | 'Hard' {
     if (lower === 'hard') return 'Hard';
     return 'Medium';
 }
-
 export const maxDuration = 120;
 
 async function persistQuestionsForSession(
@@ -181,86 +178,6 @@ export async function POST(req: Request) {
         });
     } catch (error) {
         console.error('Session creation error:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-    }
-}
-
-// Get session by ID
-export async function GET(req: Request) {
-    try {
-        const supabase = await createClient();
-
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-        if (authError || !user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const { searchParams } = new URL(req.url);
-        const sessionId = searchParams.get('id');
-
-        if (!sessionId) {
-            return NextResponse.json({ error: 'Session ID required' }, { status: 400 });
-        }
-
-        const { data: session, error } = await supabase
-            .from('interview_sessions')
-            .select('*')
-            .eq('id', sessionId)
-            .eq('user_id', user.id)
-            .single();
-
-        if (error) {
-            console.error('Error fetching session:', error);
-            return NextResponse.json({ error: 'Session not found' }, { status: 404 });
-        }
-
-        return NextResponse.json({ session });
-    } catch (error) {
-        console.error('Session fetch error:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-    }
-}
-
-export async function PATCH(req: Request) {
-    try {
-        const supabase = await createClient();
-
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-        if (authError || !user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const body = await req.json();
-        const { sessionId, messages, status, currentQuestionIndex } = body;
-
-        if (!sessionId) {
-            return NextResponse.json({ error: 'Session ID required' }, { status: 400 });
-        }
-
-        const updateData: SessionUpdate = {};
-        if (messages !== undefined) updateData.messages = messages;
-        if (status !== undefined) updateData.status = status;
-        if (currentQuestionIndex !== undefined) updateData.current_question_index = currentQuestionIndex;
-        updateData.updated_at = new Date().toISOString();
-
-        const { data: session, error } = await supabase
-            .from('interview_sessions')
-            .update(updateData)
-            .eq('id', sessionId)
-            .eq('user_id', user.id)
-            .select()
-            .single();
-
-        if (error) {
-            console.error('Error updating session:', error);
-            return NextResponse.json({ error: 'Failed to update session' }, { status: 500 });
-        }
-
-        return NextResponse.json({ session });
-    } catch (error) {
-        console.error('Session update error:', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 }
