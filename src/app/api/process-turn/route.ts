@@ -48,9 +48,16 @@ export async function POST(req: Request) {
         }
 
         const formData = await req.formData();
-        const audioFile = formData.get('audio') as Blob | null;
-        const sessionId = formData.get('sessionId') as string;
-        const textResponse = (formData.get('textResponse') as string | null)?.trim() || '';
+        const audioEntry = formData.get('audio');
+        const audioFile = audioEntry instanceof Blob ? audioEntry : null;
+        const sessionIdEntry = formData.get('sessionId');
+        const textResponseEntry = formData.get('textResponse');
+        const sessionId = typeof sessionIdEntry === 'string' ? sessionIdEntry : '';
+        const textResponse = typeof textResponseEntry === 'string' ? textResponseEntry.trim() : '';
+
+        if (audioEntry && !audioFile) {
+            return NextResponse.json({ error: 'Audio recording is invalid' }, { status: 400 });
+        }
 
         if (!textResponse && !audioFile) {
             return NextResponse.json({ error: 'Missing audio or text response' }, { status: 400 });

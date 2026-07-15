@@ -20,6 +20,11 @@ interface GeneratedQuestion {
     followup_guidelines?: string[];
 }
 
+const INTERVIEW_TYPES = new Set(['DSA', 'Frontend', 'Backend', 'Fullstack', 'Cybersecurity', 'DevOps']);
+const DIFFICULTIES = new Set(['Easy', 'Medium', 'Hard']);
+const MAX_TOPICS = 12;
+const MAX_TOPIC_LENGTH = 100;
+
 // DIVERSE FALLBACK POOLS - Never repeat questions
 const FALLBACK_POOLS: Record<string, GeneratedQuestion[]> = {
     'DSA': [
@@ -440,32 +445,31 @@ export async function POST(req: Request) {
             return rateLimitResponse(rate.retryAfterMs ?? 60_000);
         }
 
-        const body = await req.json();
-        const { interviewType, difficulty, topics, count } = body;
-
-        // Validate
-        if (!interviewType || !difficulty || !count) {
-            return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        const body: unknown = await req.json();
+        if (!body || typeof body !== 'object') {
+            return NextResponse.json({ error: 'Invalid question configuration' }, { status: 400 });
         }
 
-        if (count < 1 || count > 10) {
+        const { interviewType, difficulty, topics, count } = body as Record<string, unknown>;
+        if (!INTERVIEW_TYPES.has(String(interviewType)) || !DIFFICULTIES.has(String(difficulty))) {
+            return NextResponse.json({ error: 'Invalid interview type or difficulty' }, { status: 400 });
+        }
+
+        if (!Array.isArray(topics) || topics.length === 0 || topics.length > MAX_TOPICS ||
+            topics.some((topic) => typeof topic !== 'string' || !topic.trim() || topic.length > MAX_TOPIC_LENGTH)) {
+            return NextResponse.json({ error: 'Topics must contain between 1 and 12 valid values' }, { status: 400 });
+        }
+
+        if (typeof count !== 'number' || !Number.isInteger(count) || count < 1 || count > 10) {
             return NextResponse.json({ error: 'Count must be between 1 and 10' }, { status: 400 });
         }
 
-        console.log(`=== BATCH GENERATION START ===`);
-        console.log(`Type: ${interviewType}, Difficulty: ${difficulty}, Count: ${count}`);
-        console.log(`Topics: ${topics?.join(', ') || 'none specified'}`);
-
-        // Generate batch
         const questions = await generateQuestionBatch({
-            interviewType,
-            difficulty,
-            topics: topics || [],
+            interviewType: String(interviewType),
+            difficulty: String(difficulty),
+            topics: topics.map((topic) => topic.trim()),
             count
         });
-
-        console.log(`=== BATCH GENERATION COMPLETE ===`);
-        console.log(`Generated questions: ${questions.map(q => q.title).join(', ')}`);
 
         return NextResponse.json({ questions });
 
