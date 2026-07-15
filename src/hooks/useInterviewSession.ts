@@ -52,7 +52,7 @@ export function useInterviewSession(sessionId: string) {
                 });
                 setIsConfigLoaded(true);
 
-                toast.info('Interview started! Good luck! 🎯', {
+                toast.info('Interview started! Good luck!', {
                     position: 'top-right',
                     autoClose: 3000,
                 });

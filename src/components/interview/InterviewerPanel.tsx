@@ -79,6 +79,7 @@ export function InterviewerPanel({
                         <button
                             type="button"
                             onClick={onStopRecording}
+                            aria-label="Stop and submit recording"
                             className="w-14 h-14 rounded-full bg-destructive hover:opacity-90 flex items-center justify-center transition-all"
                         >
                             <Square className="w-5 h-5 fill-current text-destructive-foreground" />
@@ -88,6 +89,7 @@ export function InterviewerPanel({
                             type="button"
                             onClick={onStartRecording}
                             disabled={isDisabled}
+                            aria-label="Start recording answer"
                             className={cn(
                                 'w-14 h-14 rounded-full flex items-center justify-center transition-all',
                                 isDisabled
@@ -99,7 +101,7 @@ export function InterviewerPanel({
                         </button>
                     )}
 
-                    <p className="text-muted-foreground text-xs font-medium">
+                    <p className="text-muted-foreground text-xs font-medium" aria-live="polite">
                         {isLoadingQuestion && 'Loading...'}
                         {!isLoadingQuestion && interviewState === 'idle' && 'Click to speak'}
                         {interviewState === 'listening' && 'Listening...'}
@@ -117,7 +119,7 @@ export function InterviewerPanel({
                         value={textResponse}
                         onChange={(event) => setTextResponse(event.target.value)}
                         disabled={isDisabled || interviewState === 'listening'}
-                        placeholder="Or type your answer…"
+                        placeholder="Or type your answer..."
                         rows={3}
                         className="w-full resize-none rounded-md border border-border bg-background p-2 text-xs outline-none placeholder:text-muted-foreground focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
                     />
